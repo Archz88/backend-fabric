@@ -242,15 +242,42 @@ function toast(pesan, salah){
 }
 
 /* =========================================================
-   2. KOMUNIKASI: JSONP
-   GitHub Pages -> Apps Script kena CORS, jadi JSONP tetap
-   jalur utama. Timeout 25 detik supaya tidak menggantung.
-   ========================================================= */
-function panggil(action, payload){
-  return new Promise((resolve, reject) => {
-    if (!CFG.url) return reject(new Error('URL Apps Script belum diisi di Setelan'));
-    if (!CFG.token) return reject(new Error('Token belum diisi di Setelan'));
+   2. KOMUNIKASI
+   POST dulu, JSONP hanya sebagai cadangan.
 
+   JSONP memuat tag <script src=...> — itu permintaan GET yang
+   membawa cookie akun Google. Kalau di peramban ada akun yang
+   login dan bukan pemilik skrip, Google mengalihkannya ke halaman
+   pemilih akun; yang datang HTML, bukan JavaScript, jadi gagal.
+   POST tidak melewati jalur itu, sehingga kebal terhadap akun mana
+   pun yang sedang login. Jalur inilah yang dipakai app sparepart
+   dan invoice, dan terbukti jalan di semua HP.
+   ========================================================= */
+
+/** Kesalahan aturan dari server (mis. "beam sudah naik") ditandai
+ *  supaya tidak diulang lewat JSONP — jawabannya akan sama saja. */
+function galatServer_(pesan){
+  const e = new Error(pesan);
+  e.dariServer = true;
+  return e;
+}
+
+async function kirimPost_(action, payload){
+  const r = await fetch(CFG.url, {
+    method: 'POST',
+    redirect: 'follow',
+    // text/plain membuatnya jadi "simple request", tidak memicu preflight
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({action, token: CFG.token, data: payload || {}})
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const hasil = await r.json();
+  if (hasil && hasil.ok === false) throw galatServer_(hasil.error || 'Gagal di server');
+  return hasil;
+}
+
+function kirimJsonp_(action, payload){
+  return new Promise((resolve, reject) => {
     const cb = 'cb_' + Math.random().toString(36).slice(2, 10);
     const s  = document.createElement('script');
     let selesai = false;
@@ -270,7 +297,7 @@ function panggil(action, payload){
       if (selesai) return;
       bereskan();
       hasil && hasil.ok === false
-        ? reject(new Error(hasil.error || 'Gagal di server'))
+        ? reject(galatServer_(hasil.error || 'Gagal di server'))
         : resolve(hasil);
     };
 
@@ -281,6 +308,16 @@ function panggil(action, payload){
     s.src = CFG.url + '?' + q.toString();
     s.onerror = () => { if (!selesai) { bereskan(); reject(new Error('Tidak bisa menghubungi server')); } };
     document.body.appendChild(s);
+  });
+}
+
+function panggil(action, payload){
+  if (!CFG.url)   return Promise.reject(new Error('URL Apps Script belum diisi di Setelan'));
+  if (!CFG.token) return Promise.reject(new Error('Token belum diisi di Setelan'));
+
+  return kirimPost_(action, payload).catch(err => {
+    if (err.dariServer) throw err;          // aturan, bukan jaringan
+    return kirimJsonp_(action, payload);    // POST diblokir → coba jalur lama
   });
 }
 
