@@ -187,14 +187,21 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
    ========================================================= */
 const LS = {
   url   : 'kain.script_url',
+  token : 'kain.token',
   master: 'kain.master',
   draft : 'kain.draft.'
 };
 
+/* Token TIDAK ditanam di berkas ini. index.html berada di repo GitHub
+   yang bisa dibaca siapa saja, jadi token yang ditulis di sini sama
+   dengan menempelkannya di papan pengumuman. Token diisi sekali lewat
+   Setelan dan hanya tersimpan di HP masing-masing. */
 const CFG = {
   get url(){ return localStorage.getItem(LS.url) || ''; },
   set url(v){ localStorage.setItem(LS.url, v); },
-  token: '-Arch1988-'
+  get token(){ return localStorage.getItem(LS.token) || ''; },
+  set token(v){ localStorage.setItem(LS.token, v); },
+  get siap(){ return !!(this.url && this.token); }
 };
 
 let MASTER = JSON.parse(localStorage.getItem(LS.master) || 'null');
@@ -242,6 +249,7 @@ function toast(pesan, salah){
 function panggil(action, payload){
   return new Promise((resolve, reject) => {
     if (!CFG.url) return reject(new Error('URL Apps Script belum diisi di Setelan'));
+    if (!CFG.token) return reject(new Error('Token belum diisi di Setelan'));
 
     const cb = 'cb_' + Math.random().toString(36).slice(2, 10);
     const s  = document.createElement('script');
@@ -329,7 +337,7 @@ async function kirim(action, payload, label){
 
 let sedangAlir = false;
 async function alirkan(){
-  if (sedangAlir || !navigator.onLine || !CFG.url) return null;
+  if (sedangAlir || !navigator.onLine || !CFG.siap) return null;
   sedangAlir = true;
   let terakhir = null;
   try {
@@ -434,7 +442,7 @@ async function buka(tab){
   window.scrollTo(0, 0);
 
   const layar = document.getElementById('layar');
-  if (!CFG.url) return layarSetelan(layar, true);
+  if (!CFG.siap) return layarSetelan(layar, true);
 
   layar.innerHTML = '<div class="kosongpesan">Memuat…</div>';
   try {
@@ -480,7 +488,7 @@ async function buka(tab){
 /** Buka URL Apps Script apa adanya — cara tercepat melihat apakah yang
  *  keluar itu data JSON atau halaman login Google.                    */
 function bukaUrlMentah(){
-  if (!CFG.url) return toast('URL belum diisi', true);
+  if (!CFG.siap) return toast('URL atau token belum diisi', true);
   window.open(CFG.url + '?action=ping&token=' + encodeURIComponent(CFG.token), '_blank');
 }
 
@@ -1168,9 +1176,13 @@ async function kirimOpname(){
 
 function isiSetelan(el, kosong){
   el.innerHTML = `
-    ${kosong ? '<h2>Sambungkan dulu</h2><p class="sub">Tempel URL Web App Apps Script di bawah, lalu simpan.</p>' : ''}
+    ${kosong ? '<h2>Sambungkan dulu</h2><p class="sub">Isi kedua kotak di bawah, lalu simpan.</p>' : ''}
     <label for="s_url">URL Web App Apps Script</label>
     <input id="s_url" value="${esc(CFG.url)}" placeholder="https://script.google.com/macros/s/…/exec">
+    <label for="s_token">Token</label>
+    <input id="s_token" value="${esc(CFG.token)}" placeholder="token yang sama dengan di Kain.gs">
+    <p class="sub" style="margin:6px 0 0">Token disimpan di HP ini saja, tidak ikut ke GitHub.
+    Harus sama persis dengan <b>CONFIG.TOKEN</b> di Kain.gs.</p>
     <div class="tombol-baris">
       <button onclick="simpanSetelan()">Simpan &amp; uji sambungan</button>
     </div>
@@ -1187,9 +1199,12 @@ function layarSetelan(el, kosong){
 
 async function simpanSetelan(){
   const u = document.getElementById('s_url').value.trim();
+  const t = document.getElementById('s_token').value.trim();
   if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u))
     return toast('URL harus diakhiri /exec', true);
+  if (!t) return toast('Token belum diisi', true);
   CFG.url = u;
+  CFG.token = t;
   try { await panggil('ping'); toast('Tersambung'); await muatMaster(true); buka('stok'); }
   catch (e) { toast(e.message, true); }
 }
