@@ -442,11 +442,46 @@ async function buka(tab){
     ({stok:layarStok, kain:layarKain, beam:layarBeam, benang:layarBenang,
       proses:layarProses, lain:layarLain}[tab])(layar);
   } catch (e) {
-    layar.innerHTML = `<div class="card"><h2>Tidak bisa memuat data</h2>
-      <p class="sub">${esc(e.message)}</p>
-      <div class="tombol-baris"><button onclick="buka('${tab}')">Coba lagi</button>
-      <button class="garis" onclick="buka('lain')">Setelan</button></div></div>`;
+    // Setelan harus tetap terjangkau di sini. Kalau URL sudah tersimpan
+    // tapi salah, semua tab gagal memuat master — termasuk tab Lainnya —
+    // sehingga tanpa form di layar ini URL tidak bisa diperbaiki lagi.
+    layar.innerHTML = `
+      <div class="card">
+        <h2>Tidak bisa memuat data</h2>
+        <p class="sub">${esc(e.message)}</p>
+        <div class="tombol-baris"><button onclick="buka('${tab}')">Coba lagi</button></div>
+      </div>
+      <div class="eyebrow">Setelan</div>
+      <div class="card" id="setelan_card"></div>
+      <div class="eyebrow">Kalau tertulis "Tidak bisa menghubungi server"</div>
+      <div class="card">
+        <p class="sub" style="margin:0 0 10px">Alamatnya terbaca, tapi Apps Script menolak
+        membalas. Hampir selalu karena salah satu dari ini:</p>
+        <ol class="sub" style="margin:0;padding-left:20px;line-height:1.7">
+          <li>Deployment belum disetel <b>Siapa saja</b> pada "Siapa yang punya akses".
+              Kalau masih "Hanya saya", balasannya berupa halaman login, bukan data.</li>
+          <li>Skrip belum pernah diberi izin. Buka editor Apps Script, jalankan fungsi
+              <b>setup_</b> sekali, lalu setujui permintaan izinnya.</li>
+          <li>Kode diubah tapi belum dibuat <b>Deployment baru</b>. Menyimpan saja tidak
+              memperbarui alamat yang lama.</li>
+          <li>URL bukan yang berakhiran <b>/exec</b> — yang <b>/dev</b> hanya bisa dibuka
+              oleh pemilik akun.</li>
+        </ol>
+        <div class="tombol-baris">
+          <button class="garis" onclick="bukaUrlMentah()">Buka URL di tab baru</button>
+        </div>
+        <p class="sub" style="margin:8px 0 0">Kalau tab itu menampilkan halaman login Google,
+        berarti penyebabnya nomor 1 atau 2.</p>
+      </div>`;
+    isiSetelan(document.getElementById('setelan_card'));
   }
+}
+
+/** Buka URL Apps Script apa adanya — cara tercepat melihat apakah yang
+ *  keluar itu data JSON atau halaman login Google.                    */
+function bukaUrlMentah(){
+  if (!CFG.url) return toast('URL belum diisi', true);
+  window.open(CFG.url + '?action=ping&token=' + encodeURIComponent(CFG.token), '_blank');
 }
 
 /* ---------- 6a. STOK ---------- */
@@ -1023,16 +1058,28 @@ async function tutupPO(no){
 /* ---------- 6f. LAINNYA ---------- */
 async function layarLain(el){
   el.innerHTML = `
-    <div class="eyebrow">Penjualan</div>
-    <div class="card" id="jual_card"></div>
-    <div class="eyebrow">Koreksi stok opname</div>
-    <div class="card" id="opname_card"></div>
-    <div class="eyebrow">Riwayat</div>
-    <div class="card" id="kartu_card"><div class="kosongpesan">Memuat…</div></div>
     <div class="eyebrow">Setelan</div>
-    <div class="card" id="setelan_card"></div>`;
+    <div class="card" id="setelan_card"></div>
+    <div class="eyebrow">Penjualan</div>
+    <div class="card" id="jual_card"><div class="kosongpesan">Memuat…</div></div>
+    <div class="eyebrow">Koreksi stok opname</div>
+    <div class="card" id="opname_card"><div class="kosongpesan">Memuat…</div></div>
+    <div class="eyebrow">Riwayat</div>
+    <div class="card" id="kartu_card"><div class="kosongpesan">Memuat…</div></div>`;
 
-  const stok = await panggil('getStokKain');
+  // Setelan digambar lebih dulu supaya tetap ada walaupun server mati.
+  isiSetelan(document.getElementById('setelan_card'));
+
+  var stok;
+  try {
+    stok = await panggil('getStokKain');
+  } catch (e) {
+    ['jual_card','opname_card','kartu_card'].forEach(function(id){
+      document.getElementById(id).innerHTML =
+        '<div class="kosongpesan">Tidak bisa memuat: ' + esc(e.message) + '</div>';
+    });
+    return;
+  }
   const ada = stok.data.filter(s => s.qty > 0);
 
   document.getElementById('jual_card').innerHTML = ada.length ? `
@@ -1080,8 +1127,6 @@ async function layarLain(el){
     document.getElementById('kartu_card').innerHTML =
       '<div class="kosongpesan">Riwayat tidak bisa dimuat.</div>';
   });
-
-  isiSetelan(document.getElementById('setelan_card'));
 }
 
 async function kirimJual(){
