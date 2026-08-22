@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17233A">
+<title>Stok Kain &amp; Benang</title>
+<link rel="manifest" href="manifest.json">
+<style>
+/* =========================================================
+   Palet: indigo tua (tinta), greige (kain mentah),
+   teal (bak celup), tiga warna grade.
+   ========================================================= */
+:root{
+  --ink:#17233A; --ink-2:#2C3A55; --ground:#EFEBE2; --surface:#FFFFFF;
+  --teal:#0E5C5B; --teal-2:#12807E;
+  --gA:#1F7A4D; --gB:#A9760D; --gC:#B03A2E;
+  --line:#D8D2C6; --muted:#6E6A61;
+  --r:10px; --pad:14px;
+  --fs:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--fs); background:var(--ground); color:var(--ink);
+  font-size:16px; line-height:1.45;
+  padding-bottom:calc(70px + env(safe-area-inset-bottom));
+}
+.num{font-variant-numeric:tabular-nums}
+
+/* --- Bilah atas + motif lusi (helai benang di beam) --- */
+header{
+  position:sticky; top:0; z-index:30; background:var(--ink); color:#fff;
+  padding-top:env(safe-area-inset-top);
+}
+.warp{
+  height:6px;
+  background:repeating-linear-gradient(90deg,
+    rgba(255,255,255,.34) 0 1px, transparent 1px 4px);
+}
+.bar{display:flex; align-items:center; gap:10px; padding:11px 14px}
+.bar h1{font-size:15px; margin:0; font-weight:600; letter-spacing:.2px; flex:1}
+.dot{width:9px;height:9px;border-radius:50%;background:#5FD08A;flex:none}
+.dot.off{background:#E0A93A}
+.antri{
+  font-size:11px; background:#E0A93A; color:#3A2A00; border-radius:20px;
+  padding:2px 9px; font-weight:700; display:none
+}
+.antri.on{display:inline-block}
+
+main{padding:var(--pad); max-width:760px; margin:0 auto}
+
+/* --- Label mikro: huruf kecil berjarak, meniru kode di kartu pabrik --- */
+.eyebrow{
+  font-size:10.5px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--muted); font-weight:700; margin:20px 0 8px
+}
+.eyebrow:first-child{margin-top:2px}
+
+.card{
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r); padding:var(--pad); margin-bottom:12px
+}
+.card h2{font-size:15px; margin:0 0 12px; font-weight:650}
+
+label{display:block; font-size:12.5px; color:var(--muted); margin:11px 0 5px; font-weight:600}
+input,select,textarea{
+  width:100%; font:inherit; font-size:16px; padding:11px 12px;
+  border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink)
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--teal-2); outline-offset:1px}
+input[type=number]{font-variant-numeric:tabular-nums}
+.baris{display:flex; gap:9px}
+.baris>*{flex:1; min-width:0}
+
+button{
+  font:inherit; font-weight:650; border:0; border-radius:8px;
+  padding:13px 16px; background:var(--ink); color:#fff; width:100%;
+  min-height:48px; cursor:pointer
+}
+button:active{transform:translateY(1px)}
+button.teal{background:var(--teal)}
+button.garis{background:#fff; color:var(--ink); border:1px solid var(--line)}
+button.kecil{width:auto; padding:9px 13px; font-size:13.5px; min-height:40px}
+button[disabled]{opacity:.45}
+.tombol-baris{display:flex; gap:9px; margin-top:14px}
+
+/* --- Kotak grade: satu blok per grade, warna mengikuti mutu --- */
+.grade{border:1px solid var(--line); border-radius:9px; padding:11px; margin-bottom:10px}
+.grade .kepala{display:flex; align-items:center; gap:8px; margin-bottom:4px}
+.pita{width:4px; height:17px; border-radius:2px}
+.grade .kepala b{font-size:13.5px}
+.gA .pita{background:var(--gA)} .gB .pita{background:var(--gB)} .gC .pita{background:var(--gC)}
+.gA b{color:var(--gA)} .gB b{color:var(--gB)} .gC b{color:var(--gC)}
+
+/* --- Tabel ringkas --- */
+table{width:100%; border-collapse:collapse; font-size:13.5px}
+th{
+  text-align:left; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--muted); padding:6px 5px; border-bottom:1px solid var(--line)
+}
+td{padding:8px 5px; border-bottom:1px solid #F0EDE6; vertical-align:top}
+td.ka,th.ka{text-align:right}
+td.ka{white-space:nowrap}
+tr:last-child td{border-bottom:0}
+
+.tag{
+  display:inline-block; font-size:10.5px; font-weight:700; padding:2px 7px;
+  border-radius:5px; background:#EDEAE2; color:var(--muted); letter-spacing:.03em
+}
+.tag.ready{background:#E3F1E9; color:var(--gA)}
+.tag.naik{background:#E2EFF0; color:var(--teal)}
+.tag.sisa{background:#FBF0D9; color:var(--gB)}
+.tag.kosong{background:#EEEBE4; color:var(--muted)}
+.tag.merah{background:#FAE7E4; color:var(--gC)}
+
+.kosongpesan{color:var(--muted); font-size:13.5px; padding:14px 2px; text-align:center}
+
+/* --- Pratinjau sebelum simpan --- */
+.pratinjau{
+  background:#F7F5EF; border:1px dashed var(--line); border-radius:9px;
+  padding:12px; margin-top:14px; font-size:13.5px; display:none
+}
+.pratinjau.on{display:block}
+.pratinjau .judul{font-size:10.5px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--muted); font-weight:700; margin-bottom:7px}
+.pratinjau .isi div{display:flex; justify-content:space-between; padding:3px 0}
+.pratinjau b{font-variant-numeric:tabular-nums}
+
+/* --- Navigasi bawah: jempol, bukan mata --- */
+nav{
+  position:fixed; bottom:0; left:0; right:0; z-index:30;
+  background:var(--surface); border-top:1px solid var(--line);
+  display:flex; padding-bottom:env(safe-area-inset-bottom)
+}
+nav button{
+  flex:1; background:none; color:var(--muted); border-radius:0;
+  padding:9px 2px 8px; font-size:10.5px; font-weight:650; min-height:60px;
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  border-top:2px solid transparent
+}
+nav button .ikon{font-size:19px; line-height:1}
+nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
+
+/* --- Pesan --- */
+#toast{
+  position:fixed; left:50%; bottom:80px; transform:translateX(-50%) translateY(14px);
+  background:var(--ink); color:#fff; padding:12px 18px; border-radius:9px;
+  font-size:14px; max-width:88%; opacity:0; pointer-events:none;
+  transition:opacity .18s, transform .18s; z-index:60; text-align:center
+}
+#toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+#toast.salah{background:var(--gC)}
+
+.sub{font-size:12px; color:var(--muted)}
+.pisah{height:1px; background:var(--line); margin:16px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="warp"></div>
+  <div class="bar">
+    <span class="dot" id="dot"></span>
+    <h1 id="judul">Stok</h1>
+    <span class="antri" id="antri">0 antre</span>
+  </div>
+</header>
+
+<main id="layar"></main>
+
+<nav>
+  <button data-t="stok"   class="aktif"><span class="ikon">▤</span>Stok</button>
+  <button data-t="kain"><span class="ikon">▦</span>Kain</button>
+  <button data-t="beam"><span class="ikon">◎</span>Beam</button>
+  <button data-t="benang"><span class="ikon">✳</span>Benang</button>
+  <button data-t="proses"><span class="ikon">⇄</span>Proses</button>
+  <button data-t="lain"><span class="ikon">⋯</span>Lainnya</button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+/* =========================================================
+   1. KONFIGURASI & UTILITAS
+   ========================================================= */
+const LS = {
+  url   : 'kain.script_url',
+  master: 'kain.master',
+  draft : 'kain.draft.'
+};
+
+const CFG = {
+  get url(){ return localStorage.getItem(LS.url) || ''; },
+  set url(v){ localStorage.setItem(LS.url, v); },
+  token: '-Arch1988-'
+};
+
+let MASTER = JSON.parse(localStorage.getItem(LS.master) || 'null');
+let TAB = 'stok';
+
+/* batch_id: penanda anti-dobel. Dibuat sekali per submit dan
+   dipakai ulang saat retry, supaya kiriman ganda ditolak server. */
+function batchId(p){
+  return p + '-' + Date.now().toString(36) + '-' +
+         Math.random().toString(36).slice(2, 7);
+}
+
+function hariIni(){
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+/* Format angka gaya Indonesia: titik ribuan, koma desimal. */
+function fmt(n, des){
+  des = des === undefined ? 0 : des;
+  const x = Number(n) || 0;
+  return x.toLocaleString('id-ID', {minimumFractionDigits:des, maximumFractionDigits:des});
+}
+
+function esc(s){
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function toast(pesan, salah){
+  const t = document.getElementById('toast');
+  t.textContent = pesan;
+  t.className = 'on' + (salah ? ' salah' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = '', 3200);
+}
+
+/* =========================================================
+   2. KOMUNIKASI: JSONP
+   GitHub Pages -> Apps Script kena CORS, jadi JSONP tetap
+   jalur utama. Timeout 25 detik supaya tidak menggantung.
+   ========================================================= */
+function panggil(action, payload){
+  return new Promise((resolve, reject) => {
+    if (!CFG.url) return reject(new Error('URL Apps Script belum diisi di Setelan'));
+
+    const cb = 'cb_' + Math.random().toString(36).slice(2, 10);
+    const s  = document.createElement('script');
+    let selesai = false;
+
+    const bereskan = () => {
+      selesai = true;
+      delete window[cb];
+      if (s.parentNode) s.parentNode.removeChild(s);
+      clearTimeout(jam);
+    };
+
+    const jam = setTimeout(() => {
+      if (!selesai) { bereskan(); reject(new Error('Waktu habis — jaringan lambat')); }
+    }, 25000);
+
+    window[cb] = (hasil) => {
+      if (selesai) return;
+      bereskan();
+      hasil && hasil.ok === false
+        ? reject(new Error(hasil.error || 'Gagal di server'))
+        : resolve(hasil);
+    };
+
+    const q = new URLSearchParams({
+      action, token: CFG.token, callback: cb,
+      data: JSON.stringify(payload || {})
+    });
+    s.src = CFG.url + '?' + q.toString();
+    s.onerror = () => { if (!selesai) { bereskan(); reject(new Error('Tidak bisa menghubungi server')); } };
+    document.body.appendChild(s);
+  });
+}
+
+/* =========================================================
+   3. ANTRIAN OFFLINE (IndexedDB)
+   Submit selalu masuk antrian dulu, baru dikirim. Kalau
+   jaringan mati, data aman dan dikirim ulang otomatis.
+   ========================================================= */
+let DB;
+function bukaDB(){
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open('stok_kain', 1);
+    r.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('antrian'))
+        db.createObjectStore('antrian', {keyPath:'id', autoIncrement:true});
+    };
+    r.onsuccess = e => { DB = e.target.result; resolve(DB); };
+    r.onerror   = () => reject(r.error);
+  });
+}
+
+function dbTulis(rec){
+  return new Promise((resolve, reject) => {
+    const tx = DB.transaction('antrian', 'readwrite');
+    const rq = tx.objectStore('antrian').add(rec);
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror   = () => reject(rq.error);
+  });
+}
+
+function dbSemua(){
+  return new Promise((resolve, reject) => {
+    const rq = DB.transaction('antrian', 'readonly').objectStore('antrian').getAll();
+    rq.onsuccess = () => resolve(rq.result || []);
+    rq.onerror   = () => reject(rq.error);
+  });
+}
+
+function dbHapus(id){
+  return new Promise((resolve) => {
+    const rq = DB.transaction('antrian', 'readwrite').objectStore('antrian').delete(id);
+    rq.onsuccess = rq.onerror = () => resolve();
+  });
+}
+
+/** Titik masuk tunggal semua penyimpanan. */
+async function kirim(action, payload, label){
+  await dbTulis({action, payload, label, waktu: Date.now()});
+  await perbaruiAntrian();
+  const hasil = await alirkan();
+  return hasil;
+}
+
+let sedangAlir = false;
+async function alirkan(){
+  if (sedangAlir || !navigator.onLine || !CFG.url) return null;
+  sedangAlir = true;
+  let terakhir = null;
+  try {
+    const antre = await dbSemua();
+    for (const item of antre) {
+      try {
+        terakhir = await panggil(item.action, item.payload);
+        await dbHapus(item.id);
+      } catch (e) {
+        // Kesalahan aturan (mis. beam sudah naik) tidak akan sembuh
+        // dengan diulang — buang dari antrian dan laporkan.
+        if (/token|tidak dikenal|sudah|belum terdaftar|tidak ditemukan|harus/i.test(e.message)) {
+          await dbHapus(item.id);
+          toast(item.label + ': ' + e.message, true);
+        } else {
+          break;   // gangguan jaringan — pertahankan, coba lagi nanti
+        }
+      }
+    }
+  } finally {
+    sedangAlir = false;
+    await perbaruiAntrian();
+  }
+  return terakhir;
+}
+
+async function perbaruiAntrian(){
+  const n = DB ? (await dbSemua()).length : 0;
+  const el = document.getElementById('antri');
+  el.textContent = n + ' antre';
+  el.className = 'antri' + (n ? ' on' : '');
+}
+
+function statusJaringan(){
+  document.getElementById('dot').className = 'dot' + (navigator.onLine ? '' : ' off');
+}
+window.addEventListener('online',  () => { statusJaringan(); alirkan(); });
+window.addEventListener('offline', statusJaringan);
+
+/* =========================================================
+   4. DRAFT — isian tersimpan walau app tertutup
+   ========================================================= */
+function simpanDraft(nama, obj){ localStorage.setItem(LS.draft + nama, JSON.stringify(obj)); }
+function ambilDraft(nama){ try { return JSON.parse(localStorage.getItem(LS.draft + nama) || 'null'); } catch(e){ return null; } }
+function hapusDraft(nama){ localStorage.removeItem(LS.draft + nama); }
+
+/* =========================================================
+   5. MASTER DATA
+   ========================================================= */
+async function muatMaster(paksa){
+  if (MASTER && !paksa) return MASTER;
+  const r = await panggil('getMaster');
+  MASTER = r.data;
+  localStorage.setItem(LS.master, JSON.stringify(MASTER));
+  return MASTER;
+}
+
+const M = {
+  produk  : (kelas) => (MASTER?.Master_Produk || [])
+              .filter(p => String(p.aktif).toUpperCase() !== 'TIDAK')
+              .filter(p => !kelas || p.kelas === kelas),
+  mesin   : () => (MASTER?.Master_Mesin  || []).filter(m => String(m.aktif).toUpperCase() !== 'TIDAK'),
+  beam    : () => (MASTER?.Master_Beam   || []).filter(b => String(b.aktif).toUpperCase() !== 'TIDAK'),
+  benang  : (fungsi) => (MASTER?.Master_Benang || [])
+              .filter(b => String(b.aktif).toUpperCase() !== 'TIDAK')
+              .filter(b => !fungsi || b.fungsi === fungsi),
+  lokasi  : (tipe) => (MASTER?.Master_Lokasi || [])
+              .filter(l => String(l.aktif).toUpperCase() !== 'TIDAK')
+              .filter(l => !tipe || String(l.tipe).toLowerCase() === tipe.toLowerCase()),
+  po      : () => MASTER?.Master_PO_Proses || [],
+  konversi: (greige) => (MASTER?.Peta_Konversi || [])
+              .find(k => k.produk_greige === greige),
+  namaProduk: (kode) => {
+    const p = (MASTER?.Master_Produk || []).find(x => x.kode === kode);
+    return p ? p.nama : kode;
+  },
+  satuan: (kode) => {
+    const p = (MASTER?.Master_Produk || []).find(x => x.kode === kode);
+    return p ? p.satuan : 'm';
+  }
+};
+
+function opsi(daftar, nilai, teks, terpilih){
+  return daftar.map(d => {
+    const v = typeof nilai === 'function' ? nilai(d) : d[nilai];
+    const t = typeof teks  === 'function' ? teks(d)  : d[teks];
+    return `<option value="${esc(v)}"${String(v) === String(terpilih) ? ' selected' : ''}>${esc(t)}</option>`;
+  }).join('');
+}
+
+/* =========================================================
+   6. LAYAR
+   ========================================================= */
+const JUDUL = {stok:'Stok', kain:'Input Kain', beam:'Beam', benang:'Benang',
+               proses:'Proses Kain', lain:'Lainnya'};
+
+async function buka(tab){
+  TAB = tab;
+  document.getElementById('judul').textContent = JUDUL[tab];
+  document.querySelectorAll('nav button').forEach(b =>
+    b.classList.toggle('aktif', b.dataset.t === tab));
+  window.scrollTo(0, 0);
+
+  const layar = document.getElementById('layar');
+  if (!CFG.url) return layarSetelan(layar, true);
+
+  layar.innerHTML = '<div class="kosongpesan">Memuat…</div>';
+  try {
+    await muatMaster();
+    ({stok:layarStok, kain:layarKain, beam:layarBeam, benang:layarBenang,
+      proses:layarProses, lain:layarLain}[tab])(layar);
+  } catch (e) {
+    layar.innerHTML = `<div class="card"><h2>Tidak bisa memuat data</h2>
+      <p class="sub">${esc(e.message)}</p>
+      <div class="tombol-baris"><button onclick="buka('${tab}')">Coba lagi</button>
+      <button class="garis" onclick="buka('lain')">Setelan</button></div></div>`;
+  }
+}
+
+/* ---------- 6a. STOK ---------- */
+async function layarStok(el){
+  el.innerHTML = '<div class="kosongpesan">Menghitung stok…</div>';
+  const [kain, benang, beam, wip] = await Promise.all([
+    panggil('getStokKain'), panggil('getStokBenang'),
+    panggil('getStatusBeam'), panggil('getWIP')
+  ]);
+
+  const greige   = kain.data.filter(s => s.satuan === 'm');
+  const finished = kain.data.filter(s => s.satuan === 'yard');
+  const siap     = beam.data.filter(b => /Ready/.test(b.status));
+  const jalan    = beam.data.filter(b => b.status === 'Naik');
+
+  const barisKain = d => d.length
+    ? `<table><tr><th>Produk</th><th>Gr</th><th>Kelas</th><th>Lokasi</th><th class="ka">Qty</th></tr>
+       ${d.map(s => `<tr>
+         <td>${esc(M.namaProduk(s.kode_produk))}</td>
+         <td>${esc(s.grade || '–')}</td>
+         <td>${s.kelas_panjang === 'L30' ? '≥30' : s.kelas_panjang === 'S30' ? '<30' : '–'}</td>
+         <td>${esc(s.lokasi)}</td>
+         <td class="ka num"><b>${fmt(s.qty)}</b> <span class="sub">${esc(s.satuan)}</span></td>
+       </tr>`).join('')}</table>`
+    : '<div class="kosongpesan">Belum ada stok. Mulai dari tab Kain.</div>';
+
+  el.innerHTML = `
+    <div class="eyebrow">Beam</div>
+    <div class="card">
+      <div class="baris">
+        <div><div class="sub">Siap dipakai</div><div class="num" style="font-size:26px;font-weight:700">${siap.length}</div></div>
+        <div><div class="sub">Jalan di mesin</div><div class="num" style="font-size:26px;font-weight:700">${jalan.length}</div></div>
+      </div>
+    </div>
+
+    <div class="eyebrow">Kain greige (meter)</div>
+    <div class="card">${barisKain(greige)}</div>
+
+    <div class="eyebrow">Kain hasil proses (yard)</div>
+    <div class="card">${barisKain(finished)}</div>
+
+    <div class="eyebrow">Benang</div>
+    <div class="card">${benang.data.length
+      ? `<table><tr><th>Benang</th><th>Lot</th><th class="ka">Kg</th></tr>
+         ${benang.data.map(b => `<tr><td>${esc(b.kode_benang)}</td><td>${esc(b.lot)}</td>
+           <td class="ka num"><b>${fmt(b.kg, 1)}</b></td></tr>`).join('')}</table>`
+      : '<div class="kosongpesan">Belum ada benang tercatat.</div>'}</div>
+
+    <div class="eyebrow">Kain di tempat proses</div>
+    <div class="card">${wip.data.length
+      ? `<table><tr><th>PO</th><th>Produk</th><th>Gr</th><th class="ka">Sisa (m)</th></tr>
+         ${wip.data.map(w => `<tr><td>${esc(w.no_po)}</td>
+           <td>${esc(M.namaProduk(w.kode_produk))}</td><td>${esc(w.grade)}</td>
+           <td class="ka num"><b>${fmt(w.sisa_m)}</b></td></tr>`).join('')}</table>`
+      : '<div class="kosongpesan">Tidak ada kain yang sedang diproses.</div>'}</div>
+
+    <div class="tombol-baris">
+      <button class="garis" onclick="segarkan()">Muat ulang</button>
+    </div>`;
+}
+
+async function segarkan(){
+  try { await muatMaster(true); await buka(TAB); toast('Data diperbarui'); }
+  catch(e){ toast(e.message, true); }
+}
+
+/* ---------- 6b. INPUT KAIN ---------- */
+async function layarKain(el){
+  const beam = await panggil('getStatusBeam');
+  const d = ambilDraft('kain') || {};
+  const mesin = M.mesin();
+  const greige = M.produk('Greige');
+
+  if (!mesin.length || !greige.length) {
+    el.innerHTML = `<div class="card"><h2>Master belum lengkap</h2>
+      <p class="sub">Isi dulu Master_Mesin dan Master_Produk di Google Sheet,
+      lalu tekan Muat ulang di tab Stok.</p></div>`;
+    return;
+  }
+
+  const kotakGrade = (g, nama) => `
+    <div class="grade g${g}">
+      <div class="kepala"><span class="pita"></span><b>Grade ${nama}</b></div>
+      <div class="sub" style="margin-bottom:7px">Gulungan 30 meter ke atas</div>
+      <div class="baris">
+        <div><label for="m${g}L">Meter</label>
+          <input type="number" inputmode="decimal" id="m${g}L" value="${d['m'+g+'L']||''}" placeholder="0"></div>
+        <div><label for="r${g}L">Roll</label>
+          <input type="number" inputmode="numeric" id="r${g}L" value="${d['r'+g+'L']||''}" placeholder="0"></div>
+      </div>
+      <div class="sub" style="margin:10px 0 7px">Gulungan di bawah 30 meter</div>
+      <div class="baris">
+        <div><label for="m${g}S">Meter</label>
+          <input type="number" inputmode="decimal" id="m${g}S" value="${d['m'+g+'S']||''}" placeholder="0"></div>
+        <div><label for="r${g}S">Roll</label>
+          <input type="number" inputmode="numeric" id="r${g}S" value="${d['r'+g+'S']||''}" placeholder="0"></div>
+      </div>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="eyebrow">Hasil inspect</div>
+    <div class="card">
+      <div class="baris">
+        <div><label for="k_mesin">Mesin</label>
+          <select id="k_mesin">${opsi(mesin, 'no_mesin', m => 'Mesin ' + m.no_mesin, d.mesin)}</select></div>
+        <div><label for="k_tgl">Tanggal inspect</label>
+          <input type="date" id="k_tgl" value="${d.tgl || hariIni()}"></div>
+      </div>
+      <label for="k_beam">Beam yang menghasilkan kain ini</label>
+      <select id="k_beam"><option value="">— tidak diketahui —</option>
+        ${opsi(beam.data.filter(b => b.status !== 'Kosong'), 'no_beam',
+               b => 'Beam ' + b.no_beam + (b.status === 'Naik' ? ' — jalan di mesin ' + b.no_mesin : ' — ' + b.status),
+               d.beam)}</select>
+      <p class="sub" style="margin:6px 0 0">Terisi otomatis dari mesin yang dipilih. Ubah kalau
+      kain ini dari beam yang sudah turun.</p>
+
+      <label for="k_produk">Produk greige</label>
+      <select id="k_produk">${opsi(greige, 'kode', 'nama', d.produk)}</select>
+      <label for="k_lokasi">Lokasi simpan</label>
+      <select id="k_lokasi">${opsi(M.lokasi('Internal'), 'kode', 'nama', d.lokasi)}</select>
+    </div>
+
+    <div class="eyebrow">Jumlah per grade</div>
+    <div class="card">
+      ${kotakGrade('A','A')}${kotakGrade('B','B')}${kotakGrade('C','C (BS)')}
+      <div class="pratinjau" id="k_pra"></div>
+      <div class="tombol-baris">
+        <button class="garis kecil" onclick="praKain()">Periksa</button>
+        <button class="teal" id="k_simpan" onclick="simpanKain()">Simpan</button>
+      </div>
+    </div>`;
+
+  // Beam aktif mengikuti mesin yang dipilih — mengurangi salah input.
+  const setBeamAktif = () => {
+    const nm = document.getElementById('k_mesin').value;
+    const aktif = beam.data.find(b => b.status === 'Naik' && String(b.no_mesin) === String(nm));
+    if (aktif) document.getElementById('k_beam').value = aktif.no_beam;
+  };
+  document.getElementById('k_mesin').addEventListener('change', setBeamAktif);
+  if (!d.beam) setBeamAktif();
+  el.querySelectorAll('input,select').forEach(i => i.addEventListener('change', draftKain));
+}
+
+function bacaKain(){
+  const g = id => document.getElementById(id);
+  const n = id => Number(g(id).value) || 0;
+  const baris = [];
+  ['A','B','C'].forEach(gr => {
+    [['L','L30'],['S','S30']].forEach(([suf, kelas]) => {
+      const m = n('m'+gr+suf);
+      if (m > 0) baris.push({grade:gr, kelas, meter:m, roll:n('r'+gr+suf)});
+    });
+  });
+  return {
+    mesin: g('k_mesin').value, tgl: g('k_tgl').value, beam: g('k_beam').value,
+    produk: g('k_produk').value, lokasi: g('k_lokasi').value, baris
+  };
+}
+
+function draftKain(){
+  const g = id => document.getElementById(id)?.value || '';
+  const d = {mesin:g('k_mesin'), tgl:g('k_tgl'), beam:g('k_beam'),
+             produk:g('k_produk'), lokasi:g('k_lokasi')};
+  ['A','B','C'].forEach(gr => ['L','S'].forEach(s => {
+    d['m'+gr+s] = g('m'+gr+s); d['r'+gr+s] = g('r'+gr+s);
+  }));
+  simpanDraft('kain', d);
+}
+
+function praKain(){
+  const d = bacaKain();
+  const box = document.getElementById('k_pra');
+  if (!d.baris.length) { box.className = 'pratinjau'; return toast('Belum ada meter yang diisi', true); }
+  const totalM = d.baris.reduce((a,b) => a + b.meter, 0);
+  const totalR = d.baris.reduce((a,b) => a + b.roll, 0);
+  box.className = 'pratinjau on';
+  box.innerHTML = `<div class="judul">Akan disimpan</div><div class="isi">
+    ${d.baris.map(b => `<div><span>Grade ${b.grade} · ${b.kelas === 'L30' ? '≥30 m' : '<30 m'}</span>
+      <b>${fmt(b.meter)} m · ${fmt(b.roll)} roll</b></div>`).join('')}
+    <div style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px">
+      <span>Total</span><b>${fmt(totalM)} m · ${fmt(totalR)} roll</b></div>
+    <div><span>Mesin ${esc(d.mesin)} · beam ${esc(d.beam || '?')}</span><b>${esc(d.tgl)}</b></div>
+  </div>`;
+  return d;
+}
+
+async function simpanKain(){
+  const d = praKain();
+  if (!d || !d.baris.length) return;
+  const tb = document.getElementById('k_simpan');
+  tb.disabled = true;
+  try {
+    const r = await kirim('inputKain', {
+      batch_id: batchId('KAIN'), tanggal: d.tgl, no_mesin: d.mesin,
+      no_beam: d.beam, kode_produk: d.produk, lokasi: d.lokasi, baris: d.baris
+    }, 'Input kain');
+    hapusDraft('kain');
+    toast(r ? `Tersimpan — ${fmt(r.total_meter)} m` : 'Masuk antrian, dikirim saat online');
+    buka('kain');
+  } catch (e) { toast(e.message, true); }
+  finally { tb.disabled = false; }
+}
+
+/* ---------- 6c. BEAM ---------- */
+async function layarBeam(el){
+  const st = await panggil('getStatusBeam');
+  const kelas = s => s === 'Ready' ? 'ready' : s === 'Naik' ? 'naik'
+                   : s === 'Ready - sisa' ? 'sisa' : 'kosong';
+  const kosong = st.data.filter(b => b.status === 'Kosong' || b.status === 'Ready - sisa');
+  const ready  = st.data.filter(b => /Ready/.test(b.status));
+  const naik   = st.data.filter(b => b.status === 'Naik');
+
+  el.innerHTML = `
+    <div class="eyebrow">Pihane — isi beam dengan benang lusi</div>
+    <div class="card">
+      ${kosong.length ? `
+      <div class="baris">
+        <div><label for="b_no">Beam</label>
+          <select id="b_no">${opsi(kosong, 'no_beam',
+            b => 'Beam ' + b.no_beam + (b.status === 'Ready - sisa' ? ' (ada sisa)' : ''))}</select></div>
+        <div><label for="b_tgl">Tanggal</label>
+          <input type="date" id="b_tgl" value="${hariIni()}"></div>
+      </div>
+      <label for="b_benang">Jenis benang lusi</label>
+      <select id="b_benang">${opsi(M.benang('Lusi'), 'kode', b => b.jenis + ' (' + b.kode + ')')}</select>
+      <div class="baris">
+        <div><label for="b_lot">Nomor lot</label><input id="b_lot" placeholder="mis. L-2408"></div>
+        <div><label for="b_berat">Berat beam terisi (kg)</label>
+          <input type="number" inputmode="decimal" id="b_berat" placeholder="0"></div>
+      </div>
+      <p class="sub" style="margin:8px 0 0">Berat benang dihitung sendiri: berat terisi dikurangi
+      berat beam kosong. Stok benang lusi ikut berkurang.</p>
+      <div class="tombol-baris"><button class="teal" onclick="kirimPihane()">Simpan pihane</button></div>`
+      : `<div class="kosongpesan">Semua beam sedang terisi atau jalan di mesin.
+         Turunkan beam dulu sebelum bisa dipihane.</div>`}
+    </div>
+
+    <div class="eyebrow">Naikkan beam ke mesin</div>
+    <div class="card">
+      ${ready.length ? `
+      <div class="baris">
+        <div><label for="n_beam">Beam siap</label>
+          <select id="n_beam">${opsi(ready, 'no_beam', b => 'Beam ' + b.no_beam)}</select></div>
+        <div><label for="n_mesin">Mesin</label>
+          <select id="n_mesin">${opsi(M.mesin(), 'no_mesin', m => 'Mesin ' + m.no_mesin)}</select></div>
+      </div>
+      <label for="n_tgl">Tanggal naik</label>
+      <input type="date" id="n_tgl" value="${hariIni()}">
+      <p class="sub" style="margin:8px 0 0">Beam yang sedang jalan di mesin itu diturunkan otomatis.</p>
+      <div class="tombol-baris"><button onclick="kirimNaik()">Naikkan</button></div>`
+      : `<div class="kosongpesan">Belum ada beam yang siap naik. Lakukan pihane dulu.</div>`}
+    </div>
+
+    <div class="eyebrow">Status semua beam</div>
+    <div class="card">
+      ${st.data.length ? `<table><tr><th>Beam</th><th>Status</th><th>Benang</th><th class="ka">Kg</th><th></th></tr>
+        ${st.data.map(b => `<tr>
+          <td><b class="num">${esc(b.no_beam)}</b></td>
+          <td><span class="tag ${kelas(b.status)}">${esc(b.status)}${b.no_mesin ? ' · M' + esc(b.no_mesin) : ''}</span></td>
+          <td class="sub">${esc(b.lot || '–')}</td>
+          <td class="ka num">${b.kg_benang ? fmt(b.kg_benang, 1) : '–'}</td>
+          <td class="ka">${b.status === 'Naik'
+            ? `<button class="garis kecil" onclick="tanyaTurun('${esc(b.no_beam)}')">Turunkan</button>` : ''}</td>
+        </tr>`).join('')}</table>`
+        : '<div class="kosongpesan">Belum ada beam terdaftar di Master_Beam.</div>'}
+    </div>`;
+}
+
+async function kirimPihane(){
+  const g = id => document.getElementById(id).value;
+  if (!g('b_no'))    return toast('Tidak ada beam kosong yang bisa diisi', true);
+  if (!g('b_lot'))   return toast('Nomor lot belum diisi', true);
+  if (!Number(g('b_berat'))) return toast('Berat beam terisi belum diisi', true);
+  try {
+    const r = await kirim('isiBeam', {
+      batch_id: batchId('BEAM'), tanggal: g('b_tgl'), no_beam: g('b_no'),
+      kode_benang: g('b_benang'), lot: g('b_lot'), berat_isi_kg: Number(g('b_berat'))
+    }, 'Pihane');
+    toast(r ? `Pihane tersimpan — ${fmt(r.kg_benang, 1)} kg benang` : 'Masuk antrian');
+    buka('beam');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function kirimNaik(){
+  const g = id => document.getElementById(id).value;
+  if (!g('n_beam')) return toast('Tidak ada beam yang siap naik', true);
+  try {
+    const r = await kirim('naikBeam', {
+      batch_id: batchId('NAIK'), tanggal: g('n_tgl'),
+      no_beam: g('n_beam'), no_mesin: g('n_mesin')
+    }, 'Naik beam');
+    toast(r && r.turun_otomatis
+      ? `Beam ${g('n_beam')} naik — beam ${r.turun_otomatis} turun otomatis`
+      : `Beam ${g('n_beam')} naik ke mesin ${g('n_mesin')}`);
+    buka('beam');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function tanyaTurun(no){
+  const s = prompt('Sisa benang di beam ' + no + ' berapa kg?\n' +
+                   'Isi 0 kalau benang habis (paling sering terjadi).', '0');
+  if (s === null) return;
+  try {
+    await kirim('turunBeam', {
+      batch_id: batchId('TURUN'), tanggal: hariIni(),
+      no_beam: no, sisa_kg: Number(s) || 0
+    }, 'Turun beam');
+    toast(Number(s) > 0 ? `Beam ${no} turun — sisa ${s} kg` : `Beam ${no} turun, benang habis`);
+    buka('beam');
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- 6d. BENANG ---------- */
+async function layarBenang(el){
+  const stok = await panggil('getStokBenang');
+  el.innerHTML = `
+    <div class="eyebrow">Pembelian benang</div>
+    <div class="card">
+      <label for="y_benang">Jenis benang</label>
+      <select id="y_benang">${opsi(M.benang(), 'kode', b => b.jenis + ' — ' + b.fungsi)}</select>
+      <div class="baris">
+        <div><label for="y_lot">Nomor lot</label><input id="y_lot" placeholder="mis. L-2408"></div>
+        <div><label for="y_kg">Berat (kg)</label>
+          <input type="number" inputmode="decimal" id="y_kg" placeholder="0"></div>
+      </div>
+      <div class="baris">
+        <div><label for="y_pabrik">Pabrik asal</label><input id="y_pabrik" placeholder="nama pabrik benang"></div>
+        <div><label for="y_tgl">Tanggal</label><input type="date" id="y_tgl" value="${hariIni()}"></div>
+      </div>
+      <div class="tombol-baris"><button class="teal" onclick="kirimBeliBenang()">Simpan pembelian</button></div>
+    </div>
+
+    <div class="eyebrow">Benang pakan keluar ke mesin</div>
+    <div class="card">
+      <div class="baris">
+        <div><label for="p_benang">Benang pakan</label>
+          <select id="p_benang">${opsi(M.benang('Pakan'), 'kode', 'jenis')}</select></div>
+        <div><label for="p_mesin">Mesin</label>
+          <select id="p_mesin">${opsi(M.mesin(), 'no_mesin', m => 'Mesin ' + m.no_mesin)}</select></div>
+      </div>
+      <div class="baris">
+        <div><label for="p_lot">Lot</label><input id="p_lot" placeholder="nomor lot"></div>
+        <div><label for="p_kg">Kg keluar gudang</label>
+          <input type="number" inputmode="decimal" id="p_kg" placeholder="0"></div>
+      </div>
+      <label for="p_teori">Perkiraan teoritis (kg) — boleh dikosongkan</label>
+      <input type="number" inputmode="decimal" id="p_teori" placeholder="0">
+      <p class="sub" style="margin:6px 0 0">Yang mengurangi stok adalah kg aktual yang keluar gudang.
+      Angka teoritis hanya jadi pembanding untuk menandai pemakaian tidak wajar.</p>
+      <div class="tombol-baris"><button onclick="kirimPakan()">Simpan pemakaian</button></div>
+    </div>
+
+    <div class="eyebrow">Sisa benang per lot</div>
+    <div class="card">${stok.data.length
+      ? `<table><tr><th>Benang</th><th>Lot</th><th>Pabrik</th><th class="ka">Kg</th></tr>
+         ${stok.data.map(b => `<tr><td>${esc(b.kode_benang)}</td><td>${esc(b.lot)}</td>
+           <td class="sub">${esc(b.pabrik_asal || '–')}</td>
+           <td class="ka num"><b>${fmt(b.kg, 1)}</b></td></tr>`).join('')}</table>`
+      : '<div class="kosongpesan">Belum ada benang tercatat.</div>'}</div>`;
+}
+
+async function kirimBeliBenang(){
+  const g = id => document.getElementById(id).value;
+  if (!g('y_lot')) return toast('Nomor lot belum diisi', true);
+  if (!Number(g('y_kg'))) return toast('Berat belum diisi', true);
+  try {
+    await kirim('beliBenang', {
+      batch_id: batchId('BELI'), tanggal: g('y_tgl'),
+      baris: [{kode_benang:g('y_benang'), lot:g('y_lot'),
+               pabrik_asal:g('y_pabrik'), kg:Number(g('y_kg'))}]
+    }, 'Beli benang');
+    toast('Pembelian tersimpan');
+    buka('benang');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function kirimPakan(){
+  const g = id => document.getElementById(id).value;
+  if (!g('p_lot')) return toast('Nomor lot belum diisi', true);
+  if (!Number(g('p_kg'))) return toast('Kg keluar gudang belum diisi', true);
+  try {
+    const r = await kirim('pakaiPakan', {
+      batch_id: batchId('PAKAN'), tanggal: hariIni(),
+      kode_benang: g('p_benang'), lot: g('p_lot'), no_mesin: g('p_mesin'),
+      kg: Number(g('p_kg')), kg_teoritis: Number(g('p_teori')) || 0
+    }, 'Pakai pakan');
+    toast(r && r.flag
+      ? `Tersimpan — pemakaian ${fmt(r.selisih_pct,1)}% di atas teoritis`
+      : 'Pemakaian tersimpan');
+    buka('benang');
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- 6e. PROSES ---------- */
+async function layarProses(el){
+  const [wip, stok] = await Promise.all([panggil('getWIP'), panggil('getStokKain')]);
+  const greigeStok = stok.data.filter(s => s.satuan === 'm' && s.qty > 0);
+  const poAktif = M.po().filter(p => p.status !== 'Selesai');
+
+  el.innerHTML = `
+    <div class="eyebrow">Kirim greige ke tempat proses</div>
+    <div class="card">
+      <div class="baris">
+        <div><label for="c_po">Nomor PO</label><input id="c_po" placeholder="PO-160"></div>
+        <div><label for="c_tgl">Tanggal kirim</label><input type="date" id="c_tgl" value="${hariIni()}"></div>
+      </div>
+      <label for="c_tempat">Tempat proses</label>
+      <select id="c_tempat">${opsi(M.lokasi('Proses'), 'kode', 'nama')}</select>
+      <label for="c_asal">Diambil dari</label>
+      <select id="c_asal">${opsi(M.lokasi('Internal'), 'kode', 'nama')}</select>
+
+      <div class="pisah"></div>
+      <div class="eyebrow" style="margin-top:0">Kain yang dikirim</div>
+      ${greigeStok.length
+        ? greigeStok.map((s, i) => `
+          <div class="baris" style="align-items:flex-end;margin-bottom:8px">
+            <div style="flex:2">
+              <label for="c_q${i}">${esc(M.namaProduk(s.kode_produk))} · ${esc(s.grade)} ·
+                ${s.kelas_panjang === 'L30' ? '≥30' : '<30'} <span class="sub">(ada ${fmt(s.qty)} m)</span></label>
+              <input type="number" inputmode="decimal" id="c_q${i}" placeholder="0"
+                data-p="${esc(s.kode_produk)}" data-g="${esc(s.grade)}"
+                data-k="${esc(s.kelas_panjang)}" data-l="${esc(s.lokasi)}" class="c_qty">
+            </div>
+            <div><label for="c_r${i}">Roll</label>
+              <input type="number" inputmode="numeric" id="c_r${i}" class="c_roll" placeholder="0"></div>
+          </div>`).join('')
+        : '<div class="kosongpesan">Belum ada stok greige untuk dikirim.</div>'}
+
+      <div class="pisah"></div>
+      <div class="baris">
+        <div><label for="c_meter">Meter versi tempat proses</label>
+          <input type="number" inputmode="decimal" id="c_meter" placeholder="0"></div>
+        <div><label for="c_kg">Kg timbangan mereka</label>
+          <input type="number" inputmode="decimal" id="c_kg" placeholder="0"></div>
+      </div>
+      <p class="sub" style="margin:6px 0 0">Kg ini yang dipakai untuk menagih. Selisih meter di bawah 1%
+      dianggap wajar; di atas itu diberi tanda PERIKSA.</p>
+      <div class="tombol-baris"><button class="teal" onclick="kirimKeProses()">Kirim</button></div>
+    </div>
+
+    <div class="eyebrow">Terima hasil proses</div>
+    <div class="card">
+      ${poAktif.length ? `
+        <label for="t_po">PO yang diambil</label>
+        <select id="t_po" onchange="isiTerima()">${opsi(poAktif, 'no_po',
+          p => p.no_po + ' — ' + p.tempat_proses + ' (' + p.status + ')')}</select>
+        <label for="t_tujuan">Disimpan di</label>
+        <select id="t_tujuan">${opsi(M.lokasi('Internal'), 'kode', 'nama')}</select>
+        <label for="t_tgl">Tanggal ambil</label>
+        <input type="date" id="t_tgl" value="${hariIni()}">
+        <div id="t_isi"></div>`
+        : '<div class="kosongpesan">Belum ada PO terbuka.</div>'}
+    </div>
+
+    <div class="eyebrow">PO berjalan</div>
+    <div class="card">${poAktif.length
+      ? `<table><tr><th>PO</th><th>Tempat</th><th class="ka">Kirim (m)</th><th class="ka">Sisa (m)</th><th></th></tr>
+        ${poAktif.map(p => {
+          const sisa = wip.data.filter(w => String(w.no_po) === String(p.no_po))
+                               .reduce((a,w) => a + w.sisa_m, 0);
+          return `<tr>
+            <td><b>${esc(p.no_po)}</b>${p.flag ? ' <span class="tag merah">PERIKSA</span>' : ''}</td>
+            <td class="sub">${esc(p.tempat_proses)}</td>
+            <td class="ka num">${fmt(p.meter_saya)}</td>
+            <td class="ka num"><b>${fmt(sisa)}</b></td>
+            <td class="ka"><button class="garis kecil" onclick="tutupPO('${esc(p.no_po)}')">Tutup</button></td>
+          </tr>`;
+        }).join('')}</table>`
+      : '<div class="kosongpesan">Tidak ada PO berjalan.</div>'}</div>`;
+
+  if (poAktif.length) isiTerima();
+}
+
+/** Form terima: input greige diambil dari sisa WIP PO tersebut. */
+async function isiTerima(){
+  const po = document.getElementById('t_po').value;
+  const box = document.getElementById('t_isi');
+  box.innerHTML = '<div class="kosongpesan">Memuat sisa PO…</div>';
+  const wip = await panggil('getWIP');
+  const sisa = wip.data.filter(w => String(w.no_po) === String(po));
+
+  if (!sisa.length) { box.innerHTML = '<div class="kosongpesan">Tidak ada sisa kain di PO ini.</div>'; return; }
+
+  // Produk hasil diambil dari Peta_Konversi berdasarkan greige pertama.
+  const target = M.konversi(sisa[0].kode_produk);
+  const finished = M.produk('Finished');
+
+  box.innerHTML = `
+    <div class="pisah"></div>
+    <div class="eyebrow" style="margin-top:0">Greige yang terpakai</div>
+    ${sisa.map((w, i) => `
+      <div style="margin-bottom:8px">
+        <label for="t_i${i}">${esc(M.namaProduk(w.kode_produk))} · ${esc(w.grade)} ·
+          ${w.kelas_panjang === 'L30' ? '≥30' : '<30'} <span class="sub">(sisa ${fmt(w.sisa_m)} m)</span></label>
+        <input type="number" inputmode="decimal" id="t_i${i}" class="t_in" placeholder="0"
+          data-p="${esc(w.kode_produk)}" data-g="${esc(w.grade)}" data-k="${esc(w.kelas_panjang)}">
+      </div>`).join('')}
+
+    <div class="eyebrow">Kain jadi yang diterima</div>
+    <label for="t_out">Produk hasil</label>
+    <select id="t_out">${opsi(finished, 'kode', 'nama', target ? target.produk_finished : '')}</select>
+    <div class="baris">
+      <div><label for="t_yard">Yard</label>
+        <input type="number" inputmode="decimal" id="t_yard" placeholder="0"></div>
+      <div><label for="t_roll">Roll</label>
+        <input type="number" inputmode="numeric" id="t_roll" placeholder="0"></div>
+    </div>
+    <p class="sub" style="margin:6px 0 0">Isi yard sesuai hitungan tempat proses, jangan dikonversi
+    dari meter. Selisihnya justru jadi catatan susut.</p>
+    <div class="tombol-baris"><button class="teal" onclick="kirimTerima()">Simpan penerimaan</button></div>`;
+}
+
+async function kirimKeProses(){
+  const g = id => document.getElementById(id).value;
+  if (!g('c_po')) return toast('Nomor PO belum diisi', true);
+
+  const qty  = [...document.querySelectorAll('.c_qty')];
+  const roll = [...document.querySelectorAll('.c_roll')];
+  const baris = qty.map((el, i) => ({
+    kode_produk: el.dataset.p, grade: el.dataset.g, kelas: el.dataset.k,
+    qty: Number(el.value) || 0, roll: Number(roll[i]?.value) || 0
+  })).filter(b => b.qty > 0);
+
+  if (!baris.length) return toast('Belum ada kain yang diisi', true);
+
+  try {
+    const r = await kirim('kirimProses', {
+      batch_id: batchId('KIRIM'), no_po: g('c_po'), tempat_proses: g('c_tempat'),
+      tanggal: g('c_tgl'), lokasi_asal: g('c_asal'),
+      meter_mereka: Number(g('c_meter')) || 0, kg_timbangan: Number(g('c_kg')) || 0,
+      baris
+    }, 'Kirim proses');
+    toast(r && r.flag
+      ? `Terkirim — selisih ${fmt(r.selisih_pct,2)}%, perlu diperiksa`
+      : 'Kiriman tersimpan');
+    await muatMaster(true);
+    buka('proses');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function kirimTerima(){
+  const g = id => document.getElementById(id).value;
+  const input = [...document.querySelectorAll('.t_in')].map(el => ({
+    kode_produk: el.dataset.p, grade: el.dataset.g,
+    kelas: el.dataset.k, qty: Number(el.value) || 0
+  })).filter(b => b.qty > 0);
+
+  if (!input.length) return toast('Greige yang terpakai belum diisi', true);
+  if (!Number(g('t_yard'))) return toast('Yard kain jadi belum diisi', true);
+
+  try {
+    const r = await kirim('terimaProses', {
+      batch_id: batchId('TERIMA'), no_po: g('t_po'), tanggal: g('t_tgl'),
+      lokasi_tujuan: g('t_tujuan'), input,
+      output: [{kode_produk: g('t_out'), qty: Number(g('t_yard')), roll: Number(g('t_roll')) || 0}]
+    }, 'Terima proses');
+    toast(r ? `Diterima — ${fmt(r.output_yard)} yard` : 'Masuk antrian');
+    await muatMaster(true);
+    buka('proses');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function tutupPO(no){
+  if (!confirm('Tutup ' + no + '?\n\nSisa kain yang belum diambil akan dicatat sebagai susut proses. ' +
+               'PO masih bisa dibuka lagi kalau keliru.')) return;
+  try {
+    const r = await kirim('tutupPO', {no_po: no, tanggal: hariIni(), batch_id: batchId('TUTUP')}, 'Tutup PO');
+    toast(r ? `${no} ditutup — susut ${fmt(r.susut_m)} m` : 'Masuk antrian');
+    await muatMaster(true);
+    buka('proses');
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- 6f. LAINNYA ---------- */
+async function layarLain(el){
+  el.innerHTML = `
+    <div class="eyebrow">Penjualan</div>
+    <div class="card" id="jual_card"></div>
+    <div class="eyebrow">Koreksi stok opname</div>
+    <div class="card" id="opname_card"></div>
+    <div class="eyebrow">Riwayat</div>
+    <div class="card" id="kartu_card"><div class="kosongpesan">Memuat…</div></div>
+    <div class="eyebrow">Setelan</div>
+    <div class="card" id="setelan_card"></div>`;
+
+  const stok = await panggil('getStokKain');
+  const ada = stok.data.filter(s => s.qty > 0);
+
+  document.getElementById('jual_card').innerHTML = ada.length ? `
+    <label for="j_cust">Pelanggan</label><input id="j_cust" placeholder="nama pelanggan">
+    <label for="j_tgl">Tanggal</label><input type="date" id="j_tgl" value="${hariIni()}">
+    <div class="pisah"></div>
+    ${ada.map((s, i) => `
+      <div class="baris" style="align-items:flex-end;margin-bottom:8px">
+        <div style="flex:2"><label for="j_q${i}">${esc(M.namaProduk(s.kode_produk))}
+          ${s.grade ? '· ' + esc(s.grade) : ''}
+          ${s.kelas_panjang === 'L30' ? '· ≥30' : s.kelas_panjang === 'S30' ? '· <30' : ''}
+          <span class="sub">(${fmt(s.qty)} ${esc(s.satuan)} di ${esc(s.lokasi)})</span></label>
+          <input type="number" inputmode="decimal" id="j_q${i}" class="j_qty" placeholder="0"
+            data-p="${esc(s.kode_produk)}" data-g="${esc(s.grade)}" data-k="${esc(s.kelas_panjang)}"
+            data-l="${esc(s.lokasi)}" data-s="${esc(s.satuan)}"></div>
+        <div><label for="j_r${i}">Roll</label>
+          <input type="number" inputmode="numeric" id="j_r${i}" class="j_roll" placeholder="0"></div>
+      </div>`).join('')}
+    <div class="tombol-baris"><button class="teal" onclick="kirimJual()">Simpan penjualan</button></div>`
+    : '<div class="kosongpesan">Belum ada stok yang bisa dijual.</div>';
+
+  document.getElementById('opname_card').innerHTML = ada.length ? `
+    <p class="sub" style="margin:0 0 10px">Isi hasil hitung fisik. Selisihnya dihitung
+    dan dicatat sendiri — angka sistem tidak ditimpa.</p>
+    ${ada.map((s, i) => `
+      <div style="margin-bottom:8px">
+        <label for="o_${i}">${esc(M.namaProduk(s.kode_produk))}
+          ${s.grade ? '· ' + esc(s.grade) : ''} · ${esc(s.lokasi)}
+          <span class="sub">(sistem: ${fmt(s.qty)} ${esc(s.satuan)})</span></label>
+        <input type="number" inputmode="decimal" id="o_${i}" class="o_fisik"
+          placeholder="hasil hitung fisik"
+          data-p="${esc(s.kode_produk)}" data-g="${esc(s.grade)}" data-k="${esc(s.kelas_panjang)}"
+          data-l="${esc(s.lokasi)}" data-s="${esc(s.satuan)}">
+      </div>`).join('')}
+    <div class="tombol-baris"><button onclick="kirimOpname()">Simpan koreksi</button></div>`
+    : '<div class="kosongpesan">Belum ada stok untuk diopname.</div>';
+
+  panggil('getKartuStok', {limit: 40}).then(k => {
+    document.getElementById('kartu_card').innerHTML = k.data.length
+      ? `<table>${k.data.map(r => `<tr>
+          <td class="sub" style="white-space:nowrap">${esc(String(r.timestamp).slice(5,16))}</td>
+          <td>${esc(r.keterangan)}</td></tr>`).join('')}</table>`
+      : '<div class="kosongpesan">Belum ada riwayat.</div>';
+  }).catch(() => {
+    document.getElementById('kartu_card').innerHTML =
+      '<div class="kosongpesan">Riwayat tidak bisa dimuat.</div>';
+  });
+
+  isiSetelan(document.getElementById('setelan_card'));
+}
+
+async function kirimJual(){
+  const cust = document.getElementById('j_cust').value;
+  const tgl  = document.getElementById('j_tgl').value;
+  if (!cust) return toast('Nama pelanggan belum diisi', true);
+
+  const qty  = [...document.querySelectorAll('.j_qty')];
+  const roll = [...document.querySelectorAll('.j_roll')];
+  const baris = qty.map((el, i) => ({
+    kode_produk: el.dataset.p, grade: el.dataset.g, kelas: el.dataset.k,
+    lokasi: el.dataset.l, satuan: el.dataset.s,
+    qty: Number(el.value) || 0, roll: Number(roll[i]?.value) || 0
+  })).filter(b => b.qty > 0);
+
+  if (!baris.length) return toast('Belum ada kain yang diisi', true);
+  try {
+    await kirim('jualKain', {batch_id: batchId('JUAL'), tanggal: tgl, customer: cust, baris}, 'Jual kain');
+    toast('Penjualan tersimpan');
+    buka('lain');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function kirimOpname(){
+  const baris = [...document.querySelectorAll('.o_fisik')]
+    .filter(el => el.value !== '')
+    .map(el => ({
+      kode_produk: el.dataset.p, grade: el.dataset.g, kelas: el.dataset.k,
+      lokasi: el.dataset.l, satuan: el.dataset.s, fisik: Number(el.value)
+    }));
+  if (!baris.length) return toast('Belum ada hasil hitung yang diisi', true);
+  if (!confirm('Simpan koreksi untuk ' + baris.length + ' item?')) return;
+  try {
+    const r = await kirim('opnameKain', {batch_id: batchId('OPNAME'), tanggal: hariIni(), baris}, 'Opname');
+    toast(r ? `${r.baris} item dikoreksi` : 'Masuk antrian');
+    buka('lain');
+  } catch (e) { toast(e.message, true); }
+}
+
+function isiSetelan(el, kosong){
+  el.innerHTML = `
+    ${kosong ? '<h2>Sambungkan dulu</h2><p class="sub">Tempel URL Web App Apps Script di bawah, lalu simpan.</p>' : ''}
+    <label for="s_url">URL Web App Apps Script</label>
+    <input id="s_url" value="${esc(CFG.url)}" placeholder="https://script.google.com/macros/s/…/exec">
+    <div class="tombol-baris">
+      <button onclick="simpanSetelan()">Simpan &amp; uji sambungan</button>
+    </div>
+    <div class="tombol-baris">
+      <button class="garis" onclick="jalankanSetup()">Buat sheet (sekali saja)</button>
+      <button class="garis" onclick="segarkan()">Muat ulang master</button>
+    </div>`;
+}
+
+function layarSetelan(el, kosong){
+  el.innerHTML = '<div class="eyebrow">Setelan</div><div class="card" id="setelan_card"></div>';
+  isiSetelan(document.getElementById('setelan_card'), kosong);
+}
+
+async function simpanSetelan(){
+  const u = document.getElementById('s_url').value.trim();
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u))
+    return toast('URL harus diakhiri /exec', true);
+  CFG.url = u;
+  try { await panggil('ping'); toast('Tersambung'); await muatMaster(true); buka('stok'); }
+  catch (e) { toast(e.message, true); }
+}
+
+async function jalankanSetup(){
+  try {
+    const r = await panggil('setup');
+    toast(r.dibuat.length ? `${r.dibuat.length} sheet dibuat` : 'Semua sheet sudah ada');
+  } catch (e) { toast(e.message, true); }
+}
+
+/* =========================================================
+   7. JALANKAN
+   ========================================================= */
+document.querySelectorAll('nav button').forEach(b =>
+  b.addEventListener('click', () => buka(b.dataset.t)));
+
+(async function mulai(){
+  statusJaringan();
+  try { await bukaDB(); await perbaruiAntrian(); } catch(e){}
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  alirkan();
+  buka('stok');
+})();
+</script>
+</body>
+</html>
