@@ -195,6 +195,7 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
       <h1>Stok Kain &amp; Benang</h1>
       <div class="hsub" id="hsub">siap</div>
     </div>
+    <span class="antri" id="antri">0 antre</span>
     <button class="ikon-btn" id="btn-sync" title="Sinkron">&#8635;</button>
     <button class="ikon-btn" id="btn-set" title="Setelan">&#9881;</button>
   </div>
@@ -473,8 +474,10 @@ async function alirkan(){
 }
 
 async function perbaruiAntrian(){
-  const n = DB ? (await dbSemua()).length : 0;
   const el = document.getElementById('antri');
+  if (!el) return;                 // penanda tidak ada, bukan alasan menggagalkan sinkron
+  let n = 0;
+  try { n = DB ? (await dbSemua()).length : 0; } catch (e) {}
   el.textContent = n + ' antre';
   el.className = 'antri' + (n ? ' on' : '');
 }
@@ -533,7 +536,8 @@ async function sinkron(bersuara){
 function statusKepala(){
   const sub = document.getElementById('hsub');
   const tb  = document.getElementById('btn-sync');
-  tb.classList.toggle('putar', S.sinkron);
+  if (!sub) return;
+  if (tb) tb.classList.toggle('putar', S.sinkron);
   let teks, salah = false;
   if (!CFG.siap)         { teks = 'server belum diatur'; salah = true; }
   else if (S.sinkron)    { teks = 'menyinkronkan…'; }
