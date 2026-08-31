@@ -1,20 +1,21 @@
 /* Service worker: hanya menyimpan cangkang aplikasi.
-   Data TIDAK pernah di-cache di sini — data mengalir lewat JSONP
+   Data TIDAK pernah di-cache di sini — data mengalir lewat POST/JSONP
    dan antrian IndexedDB, supaya tidak ada angka stok basi yang
-   tersaji seolah-olah terbaru. */
+   tersaji seolah-olah terbaru.
 
-const CACHE = 'stok-kain-v1';
-const CANGKANG = [
-  './',
-  './index.html',
-  './manifest.json'
-];
+   PENTING: strateginya JARINGAN DULU, cache hanya cadangan saat luring.
+   Versi sebelumnya memakai cache dulu, akibatnya index.html yang sudah
+   diperbarui di GitHub tidak pernah sampai ke HP — aplikasi lama terus
+   berjalan walau berkasnya sudah diganti. */
+
+const CACHE = 'stok-kain-v2';
+const CANGKANG = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
       .then(c => c.addAll(CANGKANG))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting())      // versi baru langsung berlaku
   );
 });
 
@@ -34,16 +35,15 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
 
   e.respondWith(
-    caches.match(e.request).then(tersimpan => {
-      const dariJaringan = fetch(e.request).then(resp => {
+    fetch(e.request)
+      .then(resp => {
+        // Berhasil dari jaringan: pakai yang ini, sekaligus perbarui cache.
         if (resp && resp.status === 200 && resp.type === 'basic') {
           const salinan = resp.clone();
           caches.open(CACHE).then(c => c.put(e.request, salinan));
         }
         return resp;
-      }).catch(() => tersimpan);
-
-      return tersimpan || dariJaringan;
-    })
+      })
+      .catch(() => caches.match(e.request))  // luring: pakai simpanan terakhir
   );
 });
