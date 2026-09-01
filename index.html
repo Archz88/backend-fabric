@@ -114,7 +114,44 @@ button.kecil{width:auto; padding:9px 13px; font-size:13.5px; min-height:40px}
 button[disabled]{opacity:.45}
 .tombol-baris{display:flex; gap:9px; margin-top:14px}
 
-/* --- Kotak grade: satu blok per grade, warna mengikuti mutu --- */
+/* --- Kisi input grade: 4 kotak angka per baris, cukup untuk
+   angka ratusan meter. Label ditaruh di kepala kolom sekali saja,
+   bukan diulang di tiap kotak. --- */
+.gk{display:grid; grid-template-columns:24px repeat(4,1fr); gap:5px; align-items:center}
+.gk .h{
+  font-size:9.5px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--muted); font-weight:700; text-align:center; padding-bottom:1px
+}
+.gk .h.grup{grid-column:span 2; border-bottom:1px solid var(--line); padding-bottom:3px}
+.gk .gl{font-weight:800; font-size:14px; text-align:center; line-height:1}
+.gk input{padding:10px 3px; text-align:center; border-radius:7px}
+.gk input::placeholder{color:#C9C4B8}
+.gk .A{color:var(--gA)} .gk .B{color:var(--gB)} .gk .C{color:var(--gC)}
+.gk-sela{height:5px; grid-column:1 / -1}
+
+/* --- Daftar antre sebelum disimpan --- */
+.daftar-kepala{
+  display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px
+}
+.daftar-kepala .n{font-size:10.5px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--muted); font-weight:700}
+.item{
+  border:1px solid var(--line); border-radius:9px; padding:10px 11px; margin-bottom:8px;
+  display:flex; gap:10px; align-items:flex-start
+}
+.item .isi{flex:1; min-width:0}
+.item .atas{display:flex; justify-content:space-between; gap:8px; font-size:13.5px}
+.item .atas b{font-weight:650}
+.item .rinci{font-size:12.5px; color:var(--muted); margin-top:3px; line-height:1.5}
+.item .buang{
+  flex:none; width:32px; height:32px; min-height:32px; padding:0; border-radius:7px;
+  background:#F5F1EA; color:var(--gC); font-size:16px; font-weight:700
+}
+.total-baris{
+  display:flex; justify-content:space-between; padding-top:9px; margin-top:2px;
+  border-top:1px solid var(--line); font-size:13.5px
+}
+.total-baris b{font-variant-numeric:tabular-nums}
 .grade{border:1px solid var(--line); border-radius:9px; padding:11px; margin-bottom:10px}
 .grade .kepala{display:flex; align-items:center; gap:8px; margin-bottom:4px}
 .pita{width:4px; height:17px; border-radius:2px}
@@ -228,13 +265,14 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
 /* =========================================================
    1. KONFIGURASI & UTILITAS
    ========================================================= */
-const VERSI = '2026-08-27c';
+const VERSI = '2026-09-01a';
 
 const LS = {
   url   : 'kain.script_url',
   token : 'kain.token',
   cache : 'kain.cache',
-  draft : 'kain.draft.'
+  draft : 'kain.draft.',
+  daftar: 'kain.daftar'
 };
 
 /* Token TIDAK ditanam di berkas ini. index.html berada di repo GitHub
@@ -721,140 +759,201 @@ function layarStok(el){
 }
 
 /* ---------- 6b. INPUT KAIN ---------- */
+/* Pola daftar: isi formulir -> Tambah ke daftar -> periksa daftarnya
+   -> Simpan semua ke database. Sama seperti app sparepart, supaya
+   beberapa mesin bisa diinput sekaligus dan salah ketik masih bisa
+   dibuang sebelum apa pun masuk ke ledger. */
+
+let DAFTAR = [];
+try { DAFTAR = JSON.parse(localStorage.getItem(LS.daftar) || '[]'); } catch (e) { DAFTAR = []; }
+function simpanDaftar(){ localStorage.setItem(LS.daftar, JSON.stringify(DAFTAR)); }
+
+/** Greige selalu disimpan di pabrik, jadi lokasinya tidak ditanyakan. */
+function lokasiPabrik(){
+  const int = M.lokasi('Internal');
+  const pab = int.find(l => String(l.kode).toUpperCase() === 'PABRIK');
+  return (pab || int[0] || {kode:'PABRIK'}).kode;
+}
+
 function layarKain(el){
-  const beam = { data: S.status_beam };
-  const d = ambilDraft('kain') || {};
-  const mesin = M.mesin();
+  const beam   = { data: S.status_beam };
+  const mesin  = M.mesin();
   const greige = M.produk('Greige');
 
   if (!mesin.length || !greige.length) {
     el.innerHTML = `<div class="card"><h2>Master belum lengkap</h2>
       <p class="sub">Isi dulu Master_Mesin dan Master_Produk di Google Sheet,
-      lalu tekan Muat ulang di tab Stok.</p></div>`;
+      lalu tekan tombol sinkron di kanan atas.</p></div>`;
     return;
   }
 
-  const kotakGrade = (g, nama) => `
-    <div class="grade g${g}">
-      <div class="kepala"><span class="pita"></span><b>Grade ${nama}</b></div>
-      <div class="sub" style="margin-bottom:7px">Gulungan 30 meter ke atas</div>
-      <div class="baris">
-        <div><label for="m${g}L">Meter</label>
-          <input type="number" inputmode="decimal" id="m${g}L" value="${d['m'+g+'L']||''}" placeholder="0"></div>
-        <div><label for="r${g}L">Roll</label>
-          <input type="number" inputmode="numeric" id="r${g}L" value="${d['r'+g+'L']||''}" placeholder="0"></div>
-      </div>
-      <div class="sub" style="margin:10px 0 7px">Gulungan di bawah 30 meter</div>
-      <div class="baris">
-        <div><label for="m${g}S">Meter</label>
-          <input type="number" inputmode="decimal" id="m${g}S" value="${d['m'+g+'S']||''}" placeholder="0"></div>
-        <div><label for="r${g}S">Roll</label>
-          <input type="number" inputmode="numeric" id="r${g}S" value="${d['r'+g+'S']||''}" placeholder="0"></div>
-      </div>
-    </div>`;
+  const barisGrade = (g) => `
+    <div class="gl ${g}">${g}</div>
+    <input type="number" inputmode="numeric" id="m${g}L" placeholder="0">
+    <input type="number" inputmode="numeric" id="r${g}L" placeholder="0">
+    <input type="number" inputmode="numeric" id="m${g}S" placeholder="0">
+    <input type="number" inputmode="numeric" id="r${g}S" placeholder="0">`;
 
   el.innerHTML = `
     <div class="eyebrow">Hasil inspect</div>
     <div class="card">
       <div class="baris">
         <div><label for="k_mesin">Mesin</label>
-          <select id="k_mesin">${opsi(mesin, 'no_mesin', m => 'Mesin ' + m.no_mesin, d.mesin)}</select></div>
+          <select id="k_mesin">${opsi(mesin, 'no_mesin', m => 'Mesin ' + m.no_mesin)}</select></div>
         <div><label for="k_tgl">Tanggal inspect</label>
-          <input type="date" id="k_tgl" value="${d.tgl || hariIni()}"></div>
+          <input type="date" id="k_tgl" value="${hariIni()}"></div>
       </div>
-      <label for="k_beam">Beam yang menghasilkan kain ini</label>
-      <select id="k_beam"><option value="">— tidak diketahui —</option>
-        ${opsi(beam.data.filter(b => b.status !== 'Kosong'), 'no_beam',
-               b => 'Beam ' + b.no_beam + (b.status === 'Naik' ? ' — jalan di mesin ' + b.no_mesin : ' — ' + b.status),
-               d.beam)}</select>
-      <p class="sub" style="margin:6px 0 0">Terisi otomatis dari mesin yang dipilih. Ubah kalau
-      kain ini dari beam yang sudah turun.</p>
+      <div class="baris">
+        <div><label for="k_produk">Produk greige</label>
+          <select id="k_produk">${opsi(greige, 'kode', 'nama')}</select></div>
+        <div><label for="k_beam">Beam</label>
+          <select id="k_beam"><option value="">— tidak diketahui —</option>
+            ${opsi(beam.data.filter(b => b.status !== 'Kosong'), 'no_beam',
+                   b => 'Beam ' + b.no_beam + (b.status === 'Naik' ? ' (mesin ' + b.no_mesin + ')' : ''))}
+          </select></div>
+      </div>
 
-      <label for="k_produk">Produk greige</label>
-      <select id="k_produk">${opsi(greige, 'kode', 'nama', d.produk)}</select>
-      <label for="k_lokasi">Lokasi simpan</label>
-      <select id="k_lokasi">${opsi(M.lokasi('Internal'), 'kode', 'nama', d.lokasi)}</select>
+      <div class="pisah"></div>
+      <div class="gk">
+        <div class="h"></div>
+        <div class="h grup">30 m ke atas</div>
+        <div class="h grup">di bawah 30 m</div>
+        <div class="h"></div>
+        <div class="h">meter</div><div class="h">roll</div>
+        <div class="h">meter</div><div class="h">roll</div>
+        ${barisGrade('A')}
+        <div class="gk-sela"></div>
+        ${barisGrade('B')}
+        <div class="gk-sela"></div>
+        ${barisGrade('C')}
+      </div>
+
+      <div class="tombol-baris">
+        <button class="garis" onclick="tambahDaftar()">+ Tambah ke daftar</button>
+      </div>
     </div>
 
-    <div class="eyebrow">Jumlah per grade</div>
     <div class="card">
-      ${kotakGrade('A','A')}${kotakGrade('B','B')}${kotakGrade('C','C (BS)')}
-      <div class="pratinjau" id="k_pra"></div>
-      <div class="tombol-baris">
-        <button class="garis kecil" onclick="praKain()">Periksa</button>
-        <button class="teal" id="k_simpan" onclick="simpanKain()">Simpan</button>
+      <div class="daftar-kepala">
+        <span class="n">Daftar siap simpan</span>
+        <span class="n">${DAFTAR.length} baris</span>
       </div>
-    </div>`;
+      <div id="k_daftar"></div>
+    </div>
 
-  // Beam aktif mengikuti mesin yang dipilih — mengurangi salah input.
-  const setBeamAktif = () => {
+    <button class="teal" id="k_simpan" onclick="simpanDaftarKeDB()"
+      ${DAFTAR.length ? '' : 'disabled'}>Simpan semua ke database</button>
+    <p class="sub" style="text-align:center;margin:9px 0 0">
+      Periksa dulu daftar di atas. Setelah disimpan, koreksi dibuat sebagai baris baru.</p>`;
+
+  // Beam mengikuti mesin yang dipilih — kain biasanya dari beam yang
+  // sedang jalan, tapi tetap bisa diganti kalau beamnya sudah turun.
+  const setBeam = () => {
     const nm = document.getElementById('k_mesin').value;
     const aktif = beam.data.find(b => b.status === 'Naik' && String(b.no_mesin) === String(nm));
-    if (aktif) document.getElementById('k_beam').value = aktif.no_beam;
+    document.getElementById('k_beam').value = aktif ? aktif.no_beam : '';
   };
-  document.getElementById('k_mesin').addEventListener('change', setBeamAktif);
-  if (!d.beam) setBeamAktif();
-  el.querySelectorAll('input,select').forEach(i => i.addEventListener('change', draftKain));
+  document.getElementById('k_mesin').addEventListener('change', setBeam);
+  setBeam();
+  gambarDaftar();
 }
 
-function bacaKain(){
+function gambarDaftar(){
+  const box = document.getElementById('k_daftar');
+  if (!box) return;
+
+  if (!DAFTAR.length) {
+    box.innerHTML = `<div class="kosongpesan"><b>Daftar masih kosong</b><br>
+      Isi formulir di atas, lalu tekan "+ Tambah ke daftar".</div>`;
+    return;
+  }
+
+  const label = b => `${b.grade} ${b.kelas === 'L30' ? '≥30' : '<30'}: ` +
+                     `${fmt(b.meter)} m/${fmt(b.roll)} rl`;
+  let totalM = 0, totalR = 0;
+
+  box.innerHTML = DAFTAR.map((d, i) => {
+    const m = d.baris.reduce((a, b) => a + b.meter, 0);
+    const r = d.baris.reduce((a, b) => a + b.roll, 0);
+    totalM += m; totalR += r;
+    return `<div class="item">
+      <div class="isi">
+        <div class="atas"><b>Mesin ${esc(d.no_mesin)}</b>
+          <span class="sub">${esc(d.tanggal)}</span></div>
+        <div class="rinci">${d.baris.map(label).join(' · ')}</div>
+        <div class="rinci">${esc(M.namaProduk(d.kode_produk))}
+          ${d.no_beam ? '· beam ' + esc(d.no_beam) : '· beam tidak diketahui'}
+          — total ${fmt(m)} m / ${fmt(r)} roll</div>
+      </div>
+      <button class="buang" onclick="buangDaftar(${i})" title="Buang">&#10005;</button>
+    </div>`;
+  }).join('') + `<div class="total-baris"><span>Total semua</span>
+    <b>${fmt(totalM)} m · ${fmt(totalR)} roll</b></div>`;
+}
+
+function tambahDaftar(){
   const g = id => document.getElementById(id);
   const n = id => Number(g(id).value) || 0;
+
   const baris = [];
   ['A','B','C'].forEach(gr => {
     [['L','L30'],['S','S30']].forEach(([suf, kelas]) => {
-      const m = n('m'+gr+suf);
-      if (m > 0) baris.push({grade:gr, kelas, meter:m, roll:n('r'+gr+suf)});
+      const m = n('m' + gr + suf);
+      if (m > 0) baris.push({grade: gr, kelas, meter: m, roll: n('r' + gr + suf)});
     });
   });
-  return {
-    mesin: g('k_mesin').value, tgl: g('k_tgl').value, beam: g('k_beam').value,
-    produk: g('k_produk').value, lokasi: g('k_lokasi').value, baris
-  };
-}
 
-function draftKain(){
-  const g = id => document.getElementById(id)?.value || '';
-  const d = {mesin:g('k_mesin'), tgl:g('k_tgl'), beam:g('k_beam'),
-             produk:g('k_produk'), lokasi:g('k_lokasi')};
+  if (!baris.length) return toast('Belum ada meter yang diisi', true);
+
+  DAFTAR.push({
+    batch_id   : batchId('KAIN'),          // ditetapkan sekarang, aman dikirim ulang
+    tanggal    : g('k_tgl').value,
+    no_mesin   : g('k_mesin').value,
+    no_beam    : g('k_beam').value,
+    kode_produk: g('k_produk').value,
+    lokasi     : lokasiPabrik(),
+    baris
+  });
+  simpanDaftar();
+
+  // Kosongkan angkanya saja; mesin, tanggal, dan produk dibiarkan
+  // supaya mesin berikutnya bisa langsung diisi.
   ['A','B','C'].forEach(gr => ['L','S'].forEach(s => {
-    d['m'+gr+s] = g('m'+gr+s); d['r'+gr+s] = g('r'+gr+s);
+    g('m' + gr + s).value = ''; g('r' + gr + s).value = '';
   }));
-  simpanDraft('kain', d);
+
+  const total = baris.reduce((a, b) => a + b.meter, 0);
+  toast(`Ditambahkan — ${fmt(total)} m`);
+  layarKain(document.getElementById('layar'));
 }
 
-function praKain(){
-  const d = bacaKain();
-  const box = document.getElementById('k_pra');
-  if (!d.baris.length) { box.className = 'pratinjau'; return toast('Belum ada meter yang diisi', true); }
-  const totalM = d.baris.reduce((a,b) => a + b.meter, 0);
-  const totalR = d.baris.reduce((a,b) => a + b.roll, 0);
-  box.className = 'pratinjau on';
-  box.innerHTML = `<div class="judul">Akan disimpan</div><div class="isi">
-    ${d.baris.map(b => `<div><span>Grade ${b.grade} · ${b.kelas === 'L30' ? '≥30 m' : '<30 m'}</span>
-      <b>${fmt(b.meter)} m · ${fmt(b.roll)} roll</b></div>`).join('')}
-    <div style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px">
-      <span>Total</span><b>${fmt(totalM)} m · ${fmt(totalR)} roll</b></div>
-    <div><span>Mesin ${esc(d.mesin)} · beam ${esc(d.beam || '?')}</span><b>${esc(d.tgl)}</b></div>
-  </div>`;
-  return d;
+function buangDaftar(i){
+  DAFTAR.splice(i, 1);
+  simpanDaftar();
+  layarKain(document.getElementById('layar'));
 }
 
-async function simpanKain(){
-  const d = praKain();
-  if (!d || !d.baris.length) return;
+async function simpanDaftarKeDB(){
+  if (!DAFTAR.length) return toast('Daftar masih kosong', true);
   const tb = document.getElementById('k_simpan');
   tb.disabled = true;
-  try {
-    const r = await kirim('inputKain', {
-      batch_id: batchId('KAIN'), tanggal: d.tgl, no_mesin: d.mesin,
-      no_beam: d.beam, kode_produk: d.produk, lokasi: d.lokasi, baris: d.baris
-    }, 'Input kain');
-    hapusDraft('kain');
-    toast(r ? `Tersimpan — ${fmt(r.total_meter)} m` : 'Masuk antrian, dikirim saat online');
-    await sinkron(false);
-  } catch (e) { toast(e.message, true); }
-  finally { tb.disabled = false; }
+  tb.textContent = 'Menyimpan…';
+
+  const gagal = [];
+  const sisa  = [];
+  for (const d of DAFTAR) {
+    try {
+      await kirim('inputKain', d, 'Input kain mesin ' + d.no_mesin);
+    } catch (e) {
+      gagal.push('Mesin ' + d.no_mesin + ': ' + e.message);
+      sisa.push(d);                      // yang gagal tetap di daftar
+    }
+  }
+
+  DAFTAR = sisa;
+  simpanDaftar();
+  await sinkron(false);
+  toast(gagal.length ? gagal[0] : 'Semua tersimpan', gagal.length > 0);
 }
 
 /* ---------- 6c. BEAM ---------- */
@@ -1049,12 +1148,8 @@ function layarBenang(el){
 
     <div class="eyebrow">Benang pakan keluar ke mesin</div>
     <div class="card">
-      <div class="baris">
-        <div><label for="p_benang">Benang pakan</label>
-          <select id="p_benang">${opsi(M.benang('Pakan'), 'kode', 'jenis')}</select></div>
-        <div><label for="p_mesin">Mesin</label>
-          <select id="p_mesin">${opsi(M.mesin(), 'no_mesin', m => 'Mesin ' + m.no_mesin)}</select></div>
-      </div>
+      <label for="p_benang">Benang pakan</label>
+      <select id="p_benang">${opsi(M.benang('Pakan'), 'kode', 'jenis')}</select>
       <div class="baris">
         <div><label for="p_lot">Lot</label><input id="p_lot" placeholder="nomor lot"></div>
         <div><label for="p_kg">Kg keluar gudang</label>
@@ -1062,8 +1157,9 @@ function layarBenang(el){
       </div>
       <label for="p_teori">Perkiraan teoritis (kg) — boleh dikosongkan</label>
       <input type="number" inputmode="decimal" id="p_teori" placeholder="0">
-      <p class="sub" style="margin:6px 0 0">Yang mengurangi stok adalah kg aktual yang keluar gudang.
-      Angka teoritis hanya jadi pembanding untuk menandai pemakaian tidak wajar.</p>
+      <p class="sub" style="margin:6px 0 0">Tidak perlu ditujukan ke mesin tertentu — benang pakan
+      dibuka per karung dan masuk ke mesin mana saja. Yang mengurangi stok adalah kg aktual
+      yang keluar gudang; angka teoritis hanya jadi pembanding.</p>
       <div class="tombol-baris"><button onclick="kirimPakan()">Simpan pemakaian</button></div>
     </div>
 
@@ -1098,7 +1194,7 @@ async function kirimPakan(){
   try {
     const r = await kirim('pakaiPakan', {
       batch_id: batchId('PAKAN'), tanggal: hariIni(),
-      kode_benang: g('p_benang'), lot: g('p_lot'), no_mesin: g('p_mesin'),
+      kode_benang: g('p_benang'), lot: g('p_lot'),
       kg: Number(g('p_kg')), kg_teoritis: Number(g('p_teori')) || 0
     }, 'Pakai pakan');
     toast(r && r.flag
