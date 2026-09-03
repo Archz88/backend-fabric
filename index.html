@@ -59,6 +59,25 @@ header{
 }
 .antri.on{display:inline-block}
 
+/* --- Penanda proses di bawah tombol simpan.
+   Tanpa ini, menekan Simpan tidak mengubah apa pun di area formulir
+   dan orang mudah mengira inputnya gagal, lalu menekan berulang. --- */
+.proses-status{
+  display:none; align-items:center; gap:8px; justify-content:center;
+  font-size:12.5px; font-weight:600; margin-top:9px; padding:9px 10px;
+  border-radius:8px; text-align:center
+}
+.proses-status.on{display:flex}
+.proses-status{background:#E6EFEF; color:var(--teal)}
+.proses-status.sukses{background:#E3F1E9; color:var(--gA)}
+.proses-status.salah{background:#FAE7E4; color:var(--gC)}
+.proses-status.antre{background:#FBF0D9; color:#8A6A12}
+.putaran{
+  width:14px; height:14px; flex:none; border-radius:50%;
+  border:2px solid currentColor; border-top-color:transparent;
+  animation:putar .7s linear infinite
+}
+
 /* --- Isian yang melebihi stok --- */
 input.lebih{border-color:var(--gC); background:#FDF3F1}
 .galat{color:var(--gC); font-size:12px; margin-top:6px; font-weight:600}
@@ -395,7 +414,7 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
 /* =========================================================
    1. KONFIGURASI & UTILITAS
    ========================================================= */
-const VERSI = '2026-09-03e';
+const VERSI = '2026-09-03f';
 
 const LS = {
   url   : 'kain.script_url',
@@ -472,6 +491,77 @@ function fmt(n, des){
 function esc(s){
   return String(s === null || s === undefined ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ---- Penanda proses pada tombol simpan ----
+   Setelah tersimpan, layar digambar ulang oleh sinkron() dan keterangan
+   di bawah tombol ikut terhapus. Karena itu pesannya disimpan sebentar
+   di PESAN_TOMBOL, lalu dipasang kembali setiap selesai menggambar. */
+
+let PESAN_TOMBOL = null;
+
+/** Buat/ambil kotak keterangan tepat di bawah sebuah tombol. */
+function kotakStatus(idTombol){
+  const tb = document.getElementById(idTombol);
+  if (!tb) return null;
+  let st = document.getElementById(idTombol + '_st');
+  if (!st) {
+    st = document.createElement('div');
+    st.id = idTombol + '_st';
+    // Ditaruh setelah wadah tombol supaya tidak ikut tersusun mendatar
+    // di dalam .tombol-baris yang memakai flex.
+    const induk = tb.closest('.tombol-baris') || tb;
+    induk.parentNode.insertBefore(st, induk.nextSibling);
+  }
+  return st;
+}
+
+function mulaiProses(idTombol, pesan){
+  const tb = document.getElementById(idTombol);
+  if (!tb) return;
+  if (!tb.dataset.teksAsli) tb.dataset.teksAsli = tb.textContent;
+  tb.disabled = true;
+  tb.textContent = 'Menyimpan…';
+
+  const st = kotakStatus(idTombol);
+  if (st) {
+    st.className = 'proses-status on';
+    st.innerHTML = `<span class="putaran"></span><span>${esc(pesan || 'Mengirim ke database…')}</span>`;
+  }
+}
+
+/** jenis: sukses / salah / antre. */
+function selesaiProses(idTombol, pesan, jenis){
+  const tb = document.getElementById(idTombol);
+  if (tb) {
+    tb.disabled = false;
+    if (tb.dataset.teksAsli) tb.textContent = tb.dataset.teksAsli;
+  }
+  if (!pesan) { PESAN_TOMBOL = null; const st = document.getElementById(idTombol + '_st');
+                if (st) st.className = 'proses-status'; return; }
+
+  // Yang gagal bertahan lebih lama supaya sempat terbaca.
+  PESAN_TOMBOL = { id: idTombol, pesan, jenis: jenis || 'sukses',
+                   sampai: Date.now() + (jenis === 'salah' ? 20000 : 6000) };
+  gambarPesanTombol();
+}
+
+/** Dipanggil ulang setiap selesai menggambar layar. */
+function gambarPesanTombol(){
+  if (!PESAN_TOMBOL) return;
+  if (Date.now() > PESAN_TOMBOL.sampai) { PESAN_TOMBOL = null; return; }
+
+  const st = kotakStatus(PESAN_TOMBOL.id);
+  if (!st) return;                       // tombolnya tidak ada di layar ini
+  st.className = 'proses-status on ' + PESAN_TOMBOL.jenis;
+  st.textContent = PESAN_TOMBOL.pesan;
+
+  clearTimeout(gambarPesanTombol._jam);
+  gambarPesanTombol._jam = setTimeout(() => {
+    PESAN_TOMBOL = null;
+    const e = document.getElementById(st.id);
+    if (e) e.className = 'proses-status';
+  }, Math.max(500, PESAN_TOMBOL.sampai - Date.now()));
 }
 
 let toastTimer;
@@ -798,6 +888,7 @@ function gambar(){
   try {
     ({stok:layarStok, kain:layarKain, beam:layarBeam, benang:layarBenang,
       proses:layarProses, lain:layarLain}[TAB])(layar);
+    gambarPesanTombol();
   } catch (e) {
     layar.innerHTML = `<div class="card"><h2>Gagal menggambar layar</h2>
       <p class="sub">${esc(e.message)}</p>
@@ -1285,9 +1376,7 @@ function buangDaftar(i){
 
 async function simpanDaftarKeDB(){
   if (!DAFTAR.length) return toast('Daftar masih kosong', true);
-  const tb = document.getElementById('k_simpan');
-  tb.disabled = true;
-  tb.textContent = 'Menyimpan…';
+  mulaiProses('k_simpan', `Mengirim ${DAFTAR.length} baris ke database…`);
 
   const gagal = [];
   const sisa  = [];
@@ -1300,10 +1389,18 @@ async function simpanDaftarKeDB(){
     }
   }
 
+  const berhasil = DAFTAR.length - sisa.length;
   DAFTAR = sisa;
   simpanDaftar();
+
+  if (gagal.length) {
+    selesaiProses('k_simpan', gagal[0], 'salah');
+    toast(gagal[0], true);
+  } else {
+    selesaiProses('k_simpan', `Tersimpan — ${berhasil} baris masuk stok`, 'sukses');
+    toast('Semua tersimpan');
+  }
   await sinkron(false);
-  toast(gagal.length ? gagal[0] : 'Semua tersimpan', gagal.length > 0);
 }
 
 /* ---------- 6c. BEAM ---------- */
@@ -1348,7 +1445,7 @@ function layarBeam(el){
       <label for="b_produk">Hasil kain</label>
       <select id="b_produk">${opsi(M.produk('Greige'), 'kode', 'nama')}</select>
       <div class="pratinjau on" id="b_pra" style="margin-top:12px"></div>
-      <div class="tombol-baris"><button class="teal" onclick="kirimPihane()">Simpan pihane</button></div>`
+      <div class="tombol-baris"><button class="teal" id="b_simpan" onclick="kirimPihane()">Simpan pihane</button></div>`
       : `<div class="kosongpesan">Semua beam sedang terisi atau jalan di mesin.
          Turunkan beam dulu sebelum bisa dipihane.</div>`}
     </div>
@@ -1365,7 +1462,7 @@ function layarBeam(el){
       <label for="n_tgl">Tanggal naik</label>
       <input type="date" id="n_tgl" value="${hariIni()}">
       <p class="sub" style="margin:8px 0 0">Beam yang sedang jalan di mesin itu diturunkan otomatis.</p>
-      <div class="tombol-baris"><button onclick="kirimNaik()">Naikkan</button></div>`
+      <div class="tombol-baris"><button id="n_simpan" onclick="kirimNaik()">Naikkan</button></div>`
       : `<div class="kosongpesan">Belum ada beam yang siap naik. Lakukan pihane dulu.</div>`}
     </div>
 
@@ -1434,6 +1531,8 @@ async function kirimPihane(){
   if (!g('b_no'))    return toast('Tidak ada beam kosong yang bisa diisi', true);
   if (!g('b_lot'))   return toast('Nomor lot belum diisi', true);
   if (!Number(g('b_berat'))) return toast('Berat beam terisi belum diisi', true);
+
+  mulaiProses('b_simpan', `Mengirim pihane beam ${g('b_no')} ke database…`);
   try {
     const r = await kirim('isiBeam', {
       batch_id: batchId('BEAM'), tanggal: g('b_tgl'), no_beam: g('b_no'),
@@ -1442,24 +1541,43 @@ async function kirimPihane(){
       panjang_tarikan_m: Number(g('b_tarik')) || 0,
       kode_produk: g('b_produk')
     }, 'Pihane');
-    toast(r ? `Pihane tersimpan — ${fmt(r.kg_benang, 1)} kg benang` : 'Masuk antrian');
+    if (r) {
+      selesaiProses('b_simpan', `Tersimpan — ${fmt(r.kg_benang, 1)} kg benang masuk beam`, 'sukses');
+      toast(`Pihane tersimpan — ${fmt(r.kg_benang, 1)} kg benang`);
+    } else {
+      selesaiProses('b_simpan', 'Belum ada jaringan — tersimpan di antrean', 'antre');
+    }
     await sinkron(false);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    selesaiProses('b_simpan', e.message, 'salah');
+    toast(e.message, true);
+  }
 }
 
 async function kirimNaik(){
   const g = id => document.getElementById(id).value;
   if (!g('n_beam')) return toast('Tidak ada beam yang siap naik', true);
+
+  mulaiProses('n_simpan', `Menaikkan beam ${g('n_beam')} ke mesin ${g('n_mesin')}…`);
   try {
     const r = await kirim('naikBeam', {
       batch_id: batchId('NAIK'), tanggal: g('n_tgl'),
       no_beam: g('n_beam'), no_mesin: g('n_mesin')
     }, 'Naik beam');
-    toast(r && r.turun_otomatis
-      ? `Beam ${g('n_beam')} naik — beam ${r.turun_otomatis} turun otomatis`
-      : `Beam ${g('n_beam')} naik ke mesin ${g('n_mesin')}`);
+    if (r) {
+      const pesan = r.turun_otomatis
+        ? `Beam ${g('n_beam')} naik — beam ${r.turun_otomatis} turun otomatis`
+        : `Beam ${g('n_beam')} naik ke mesin ${g('n_mesin')}`;
+      selesaiProses('n_simpan', pesan, 'sukses');
+      toast(pesan);
+    } else {
+      selesaiProses('n_simpan', 'Belum ada jaringan — tersimpan di antrean', 'antre');
+    }
     await sinkron(false);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    selesaiProses('n_simpan', e.message, 'salah');
+    toast(e.message, true);
+  }
 }
 
 function tanyaTurun(no){
@@ -1536,7 +1654,7 @@ function layarBenang(el){
         <div><label for="y_pabrik">Pabrik asal</label><input id="y_pabrik" placeholder="nama pabrik benang"></div>
         <div><label for="y_tgl">Tanggal</label><input type="date" id="y_tgl" value="${hariIni()}"></div>
       </div>
-      <div class="tombol-baris"><button class="teal" onclick="kirimBeliBenang()">Simpan pembelian</button></div>
+      <div class="tombol-baris"><button class="teal" id="y_simpan" onclick="kirimBeliBenang()">Simpan pembelian</button></div>
     </div>
 
     <div class="eyebrow">Benang pakan keluar ke mesin</div>
@@ -1553,7 +1671,7 @@ function layarBenang(el){
       <p class="sub" style="margin:6px 0 0">Tidak perlu ditujukan ke mesin tertentu — benang pakan
       dibuka per karung dan masuk ke mesin mana saja. Yang mengurangi stok adalah kg aktual
       yang keluar gudang; angka teoritis hanya jadi pembanding.</p>
-      <div class="tombol-baris"><button onclick="kirimPakan()">Simpan pemakaian</button></div>
+      <div class="tombol-baris"><button id="p_simpan" onclick="kirimPakan()">Simpan pemakaian</button></div>
     </div>
 
     <div class="eyebrow">Sisa benang per lot</div>
@@ -1569,32 +1687,54 @@ async function kirimBeliBenang(){
   const g = id => document.getElementById(id).value;
   if (!g('y_lot')) return toast('Nomor lot belum diisi', true);
   if (!Number(g('y_kg'))) return toast('Berat belum diisi', true);
+
+  const kg = Number(g('y_kg'));
+  mulaiProses('y_simpan', `Mengirim ${fmt(kg,1)} kg ke database…`);
   try {
-    await kirim('beliBenang', {
+    const r = await kirim('beliBenang', {
       batch_id: batchId('BELI'), tanggal: g('y_tgl'),
       baris: [{kode_benang:g('y_benang'), lot:g('y_lot'),
-               pabrik_asal:g('y_pabrik'), kg:Number(g('y_kg'))}]
+               pabrik_asal:g('y_pabrik'), kg}]
     }, 'Beli benang');
-    toast('Pembelian tersimpan');
+    if (r) {
+      selesaiProses('y_simpan', `Tersimpan — ${fmt(kg,1)} kg masuk stok`, 'sukses');
+      toast('Pembelian tersimpan');
+    } else {
+      selesaiProses('y_simpan', 'Belum ada jaringan — tersimpan di antrean, dikirim otomatis nanti', 'antre');
+    }
     await sinkron(false);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    selesaiProses('y_simpan', e.message, 'salah');
+    toast(e.message, true);
+  }
 }
 
 async function kirimPakan(){
   const g = id => document.getElementById(id).value;
   if (!g('p_lot')) return toast('Nomor lot belum diisi', true);
   if (!Number(g('p_kg'))) return toast('Kg keluar gudang belum diisi', true);
+
+  mulaiProses('p_simpan', `Mengirim ${fmt(Number(g('p_kg')),1)} kg ke database…`);
   try {
     const r = await kirim('pakaiPakan', {
       batch_id: batchId('PAKAN'), tanggal: hariIni(),
       kode_benang: g('p_benang'), lot: g('p_lot'),
       kg: Number(g('p_kg')), kg_teoritis: Number(g('p_teori')) || 0
     }, 'Pakai pakan');
-    toast(r && r.flag
-      ? `Tersimpan — pemakaian ${fmt(r.selisih_pct,1)}% di atas teoritis`
-      : 'Pemakaian tersimpan');
+    if (r) {
+      const pesan = r.flag
+        ? `Tersimpan — pemakaian ${fmt(r.selisih_pct,1)}% di atas teoritis`
+        : 'Tersimpan — stok benang pakan berkurang';
+      selesaiProses('p_simpan', pesan, r.flag ? 'salah' : 'sukses');
+      toast(pesan);
+    } else {
+      selesaiProses('p_simpan', 'Belum ada jaringan — tersimpan di antrean', 'antre');
+    }
     await sinkron(false);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    selesaiProses('p_simpan', e.message, 'salah');
+    toast(e.message, true);
+  }
 }
 
 /* ---------- 6e. PROSES ---------- */
@@ -1803,6 +1943,7 @@ async function kirimKeProses(){
 
   if (!baris.length) return toast('Belum ada kain yang diisi', true);
 
+  mulaiProses('c_kirim', `Mengirim ${fmt(baris.reduce((a,b)=>a+b.qty,0))} m ke database…`);
   try {
     const r = await kirim('kirimProses', {
       batch_id: batchId('KIRIM'), no_po: g('c_po'), tempat_proses: g('c_tempat'),
@@ -1824,6 +1965,7 @@ async function kirimTerima(){
   if (!input.length) return toast('Greige yang terpakai belum diisi', true);
   if (!Number(g('t_yard'))) return toast('Yard kain jadi belum diisi', true);
 
+  mulaiProses('t_simpan', `Mengirim ${fmt(Number(g('t_yard')))} yard ke database…`);
   try {
     const r = await kirim('terimaProses', {
       batch_id: batchId('TERIMA'), no_po: g('t_po'), tanggal: g('t_tgl'),
@@ -1955,11 +2097,22 @@ async function kirimJual(){
   })).filter(b => b.qty > 0);
 
   if (!baris.length) return toast('Belum ada kain yang diisi', true);
+
+  mulaiProses('j_simpan', `Mengirim penjualan ke ${cust}…`);
   try {
-    await kirim('jualKain', {batch_id: batchId('JUAL'), tanggal: tgl, customer: cust, baris}, 'Jual kain');
-    toast('Penjualan tersimpan');
+    const r = await kirim('jualKain',
+      {batch_id: batchId('JUAL'), tanggal: tgl, customer: cust, baris}, 'Jual kain');
+    if (r) {
+      selesaiProses('j_simpan', `Tersimpan — ${baris.length} baris, stok berkurang`, 'sukses');
+      toast('Penjualan tersimpan');
+    } else {
+      selesaiProses('j_simpan', 'Belum ada jaringan — tersimpan di antrean', 'antre');
+    }
     await sinkron(false);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    selesaiProses('j_simpan', e.message, 'salah');
+    toast(e.message, true);
+  }
 }
 
 async function kirimOpname(){
