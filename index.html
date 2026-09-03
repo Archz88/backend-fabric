@@ -222,6 +222,18 @@ button[disabled]{opacity:.45}
 .roll-rinci .tg.A{color:var(--gA)} .roll-rinci .tg.B{color:var(--gB)}
 .roll-rinci .tg.C{color:var(--gC)}
 
+/* --- Kepala lokasi di layar stok --- */
+.lok{
+  display:flex; align-items:center; gap:8px; margin:0 0 10px;
+  font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--muted); font-weight:700
+}
+.lok::after{content:''; flex:1; height:1px; background:var(--line)}
+.lok b{color:var(--ink); letter-spacing:.04em; font-size:12.5px; text-transform:none}
+
+/* Angka roll dibuat redup: yang dipakai mengambil keputusan adalah meter. */
+.rl{color:#A8A296; font-size:10.5px; font-weight:400; margin-left:5px}
+
 /* --- Kelompok produk di layar stok --- */
 .kelompok{margin-bottom:14px}
 .kelompok:last-child{margin-bottom:0}
@@ -383,7 +395,7 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
 /* =========================================================
    1. KONFIGURASI & UTILITAS
    ========================================================= */
-const VERSI = '2026-09-03d';
+const VERSI = '2026-09-03e';
 
 const LS = {
   url   : 'kain.script_url',
@@ -819,75 +831,156 @@ function bukaUrlMentah(){
 }
 
 /* ---------- 6a. STOK ---------- */
-/** Kelompokkan stok per produk. Dengan banyak lebar kain yang namanya
- *  mirip (121, 137, 144 cm), daftar rata tanpa kelompok jadi sulit
- *  dibaca — nama produk terulang di tiap baris dan totalnya tidak terlihat. */
-function kelompokStok(daftar, adaGrade){
+
+/** Kumpulkan array of object jadi peta berdasarkan satu kunci. */
+function perKunci(daftar, ambilKunci){
   const peta = {};
-  daftar.forEach(s => {
-    if (!peta[s.kode_produk]) peta[s.kode_produk] = {total: 0, satuan: s.satuan, baris: []};
-    peta[s.kode_produk].total += s.qty;
-    peta[s.kode_produk].baris.push(s);
+  daftar.forEach(d => {
+    const k = ambilKunci(d);
+    (peta[k] = peta[k] || []).push(d);
   });
+  return peta;
+}
 
-  const urutGrade = {A:0, B:1, C:2};
-  return Object.keys(peta).sort().map(kode => {
-    const k = peta[kode];
-    k.baris.sort((a, b) => {
-      const d = (urutGrade[a.grade] ?? 9) - (urutGrade[b.grade] ?? 9);
-      if (d) return d;
-      if (a.kelas_panjang !== b.kelas_panjang) return a.kelas_panjang < b.kelas_panjang ? -1 : 1;
-      return String(a.lokasi) < String(b.lokasi) ? -1 : 1;
-    });
+/** Sel angka: meter tebal, jumlah roll redup di sampingnya. */
+function selMeter(meter, roll, kelas){
+  if (!meter) return `<td class="nol ${kelas || ''}">–</td>`;
+  return `<td class="${kelas || ''}"><b>${fmt(meter)}</b>` +
+         (roll ? `<span class="rl">${fmt(roll)} rl</span>` : '') + `</td>`;
+}
 
-    const isi = k.baris.map(s => `<tr>
-      ${adaGrade ? `<td class="g ${esc(s.grade)}">${esc(s.grade || '–')}</td>
-        <td class="kiri">${s.kelas_panjang === 'L30' ? '≥30 m'
-          : s.kelas_panjang === 'S30' ? '<30 m' : '–'}</td>` : ''}
-      <td class="kiri">${esc(s.lokasi)}</td>
-      <td><b>${fmt(s.qty)}</b></td>
-      <td class="nol">${s.roll ? fmt(s.roll) + ' rl' : ''}</td>
-    </tr>`).join('');
+/**
+ * Tabel greige satu produk: kolom grade, baris kelas panjang.
+ * Bentuknya sengaja disamakan dengan tabel di tab Kain supaya
+ * angka hasil inspect dan angka stok dibaca dengan cara yang sama.
+ */
+function tabelGreige(baris, batas){
+  const grades = ['A','B','C'].filter(g => baris.some(b => b.grade === g));
+  if (!grades.length) return '';
 
-    return `<div class="kelompok">
-      <div class="nama"><b>${esc(M.namaProduk(kode))}</b>
-        <span class="jml">${fmt(k.total)} ${esc(k.satuan)}</span></div>
-      <table class="mini">
-        <tr>${adaGrade ? '<th></th><th class="kiri">Panjang</th>' : ''}
-          <th class="kiri">Lokasi</th><th>Jumlah</th><th></th></tr>
-        ${isi}
-      </table>
-    </div>`;
-  }).join('');
+  const ambil = (g, k) => baris.find(b => b.grade === g && b.kelas_panjang === k);
+
+  const barisKelas = (kelas, label) => `<tr>
+    <td class="kiri">${label}</td>
+    ${grades.map((g, i) => {
+      const b = ambil(g, kelas);
+      return selMeter(b ? b.qty : 0, b ? b.roll : 0, i ? 'sekat' : '');
+    }).join('')}
+  </tr>`;
+
+  return `<table class="tin">
+    <tr><th class="kiri"></th>
+      ${grades.map((g, i) => `<th class="gh ${g} ${i ? 'sekat' : ''}">Grade ${g}</th>`).join('')}</tr>
+    ${barisKelas('L30', '≥' + batas + ' m')}
+    ${barisKelas('S30', '<' + batas + ' m')}
+    <tr class="jml"><td class="kiri">Total</td>
+      ${grades.map((g, i) => {
+        const isi = baris.filter(b => b.grade === g);
+        return selMeter(isi.reduce((a, b) => a + b.qty, 0),
+                        isi.reduce((a, b) => a + b.roll, 0), i ? 'sekat' : '');
+      }).join('')}</tr>
+  </table>`;
 }
 
 function layarStok(el){
-  const greige   = S.stok_kain.filter(s => s.satuan === 'm');
-  const finished = S.stok_kain.filter(s => s.satuan === 'yard');
-  const siap     = S.status_beam.filter(b => /Ready/.test(b.status));
-  const jalan    = S.status_beam.filter(b => b.status === 'Naik');
+  const batas = AMBANG();
 
-  const totalGreige = greige.reduce((a, s) => a + s.qty, 0);
-  const totalJadi   = finished.reduce((a, s) => a + s.qty, 0);
+  // Kain di tempat proses dipisah sepenuhnya: begitu dikirim, grade dan
+  // panjangnya sudah tercampur di sana, jadi memecahnya lagi per grade
+  // akan menampilkan rincian yang tidak bisa diverifikasi di lapangan.
+  const lokProses = {};
+  M.lokasi('Proses').forEach(l => lokProses[l.kode] = true);
+  const namaLok = {}, urutLok = {};
+  (S.master?.Master_Lokasi || []).forEach((l, i) => {
+    namaLok[l.kode] = l.nama; urutLok[l.kode] = i;
+  });
+  const nl = k => namaLok[k] || k;
+  const urutkanLok = a => a.sort((x, y) =>
+    (urutLok[x] === undefined ? 99 : urutLok[x]) - (urutLok[y] === undefined ? 99 : urutLok[y]));
+
+  const greige   = S.stok_kain.filter(s => s.satuan === 'm'    && !lokProses[s.lokasi]);
+  const finished = S.stok_kain.filter(s => s.satuan === 'yard' && !lokProses[s.lokasi]);
+  const diProses = S.stok_kain.filter(s => lokProses[s.lokasi]);
+
+  const jml = (a, f) => a.reduce((x, y) => x + (f ? f(y) : y.qty), 0);
+
+  // --- Greige: lokasi dulu, baru produk ---
+  const perLokasi = perKunci(greige, s => s.lokasi);
+  const isiGreige = urutkanLok(Object.keys(perLokasi)).map(lok => {
+    const perProduk = perKunci(perLokasi[lok], s => s.kode_produk);
+    return `<div class="card">
+      <div class="lok">Lokasi <b>${esc(nl(lok))}</b></div>
+      ${Object.keys(perProduk).sort().map(kode => `
+        <div class="kelompok">
+          <div class="nama"><b>${esc(M.namaProduk(kode))}</b>
+            <span class="jml">${fmt(jml(perProduk[kode]))} m</span></div>
+          ${tabelGreige(perProduk[kode], batas)}
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  // --- Kain jadi: tanpa grade, cukup per lokasi dan produk ---
+  const perLokJadi = perKunci(finished, s => s.lokasi);
+  const isiJadi = urutkanLok(Object.keys(perLokJadi)).map(lok => `
+    <div class="card">
+      <div class="lok">Lokasi <b>${esc(nl(lok))}</b></div>
+      <table class="mini">
+        ${perLokJadi[lok].map(s => `<tr>
+          <td class="kiri">${esc(M.namaProduk(s.kode_produk))}</td>
+          <td><b>${fmt(s.qty)}</b> <span class="rl">yard</span></td>
+          <td class="nol">${s.roll ? fmt(s.roll) + ' rl' : ''}</td>
+        </tr>`).join('')}
+      </table>
+    </div>`).join('');
+
+  // --- Di tempat proses: digabung, tidak dipecah per grade ---
+  const perLokProses = perKunci(diProses, s => s.lokasi);
+  const isiProses = urutkanLok(Object.keys(perLokProses)).map(lok => {
+    const perProduk = perKunci(perLokProses[lok], s => s.kode_produk);
+    const poLok = {};
+    S.wip.filter(w => w.lokasi === lok).forEach(w => {
+      poLok[w.no_po] = (poLok[w.no_po] || 0) + w.sisa_m;
+    });
+    return `<div class="card">
+      <div class="lok">Di <b>${esc(nl(lok))}</b></div>
+      <table class="mini">
+        ${Object.keys(perProduk).sort().map(kode => `<tr>
+          <td class="kiri">${esc(M.namaProduk(kode))}</td>
+          <td><b>${fmt(jml(perProduk[kode]))}</b> <span class="rl">m</span></td>
+        </tr>`).join('')}
+      </table>
+      ${Object.keys(poLok).length ? `<div class="lok" style="margin:12px 0 8px">Per PO</div>
+        <table class="mini">
+          ${Object.keys(poLok).sort().map(po => `<tr>
+            <td class="kiri"><b>${esc(po)}</b></td>
+            <td><b>${fmt(poLok[po])}</b> <span class="rl">m</span></td>
+          </tr>`).join('')}
+        </table>` : ''}
+    </div>`;
+  }).join('');
+
+  const siap  = S.status_beam.filter(b => /Ready/.test(b.status));
+  const jalan = S.status_beam.filter(b => b.status === 'Naik');
 
   el.innerHTML = `
     <div class="eyebrow">Beam</div>
     <div class="card">
       <div class="baris">
-        <div><div class="sub">Siap dipakai</div><div class="num" style="font-size:26px;font-weight:700">${siap.length}</div></div>
-        <div><div class="sub">Jalan di mesin</div><div class="num" style="font-size:26px;font-weight:700">${jalan.length}</div></div>
+        <div><div class="sub">Siap dipakai</div>
+          <div class="num" style="font-size:26px;font-weight:700">${siap.length}</div></div>
+        <div><div class="sub">Jalan di mesin</div>
+          <div class="num" style="font-size:26px;font-weight:700">${jalan.length}</div></div>
       </div>
     </div>
 
-    <div class="eyebrow">Kain greige — ${fmt(totalGreige)} meter</div>
-    <div class="card">${greige.length
-      ? kelompokStok(greige, true)
-      : '<div class="kosongpesan">Belum ada stok. Mulai dari tab Kain.</div>'}</div>
+    <div class="eyebrow">Kain greige — ${fmt(jml(greige))} meter</div>
+    ${isiGreige || '<div class="card"><div class="kosongpesan">Belum ada stok. Mulai dari tab Kain.</div></div>'}
 
-    <div class="eyebrow">Kain hasil proses — ${fmt(totalJadi)} yard</div>
-    <div class="card">${finished.length
-      ? kelompokStok(finished, false)
-      : '<div class="kosongpesan">Belum ada kain hasil proses.</div>'}</div>
+    <div class="eyebrow">Kain hasil proses — ${fmt(jml(finished))} yard</div>
+    ${isiJadi || '<div class="card"><div class="kosongpesan">Belum ada kain hasil proses.</div></div>'}
+
+    <div class="eyebrow">Kain di tempat proses — ${fmt(jml(diProses))} meter</div>
+    ${isiProses || '<div class="card"><div class="kosongpesan">Tidak ada kain yang sedang diproses.</div></div>'}
 
     <div class="eyebrow">Benang</div>
     <div class="card">${S.stok_benang.length
@@ -896,16 +989,6 @@ function layarStok(el){
            <td class="kiri">${esc(b.lot)}</td>
            <td><b>${fmt(b.kg, 1)}</b></td></tr>`).join('')}</table>`
       : '<div class="kosongpesan">Belum ada benang tercatat.</div>'}</div>
-
-    <div class="eyebrow">Kain di tempat proses</div>
-    <div class="card">${S.wip.length
-      ? `<table class="mini"><tr><th class="kiri">PO</th><th class="kiri">Produk</th>
-         <th></th><th>Sisa (m)</th></tr>
-         ${S.wip.map(w => `<tr><td class="kiri"><b>${esc(w.no_po)}</b></td>
-           <td class="kiri">${esc(M.namaProduk(w.kode_produk))}</td>
-           <td class="g ${esc(w.grade)}">${esc(w.grade)}</td>
-           <td><b>${fmt(w.sisa_m)}</b></td></tr>`).join('')}</table>`
-      : '<div class="kosongpesan">Tidak ada kain yang sedang diproses.</div>'}</div>
 
     <div class="eyebrow">Produksi per mesin</div>
     <div class="card">${S.produksi.length
