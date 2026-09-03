@@ -59,6 +59,21 @@ header{
 }
 .antri.on{display:inline-block}
 
+/* --- Isian yang melebihi stok --- */
+input.lebih{border-color:var(--gC); background:#FDF3F1}
+.galat{color:var(--gC); font-size:12px; margin-top:6px; font-weight:600}
+
+/* --- Baris keterangan di panel konfirmasi --- */
+.fakta{display:flex; justify-content:space-between; gap:10px; padding:7px 0;
+  border-bottom:1px solid #F0EDE6; font-size:13.5px}
+.fakta:last-of-type{border-bottom:0}
+.fakta b{font-variant-numeric:tabular-nums}
+.fakta.tebal{border-top:1px solid var(--line); border-bottom:0; margin-top:4px;
+  padding-top:9px; font-size:14.5px}
+.pintas{display:flex; gap:8px; margin:10px 0 2px}
+.pintas button{flex:1; min-height:42px; font-size:13.5px}
+.pintas button.pilih{background:var(--teal); color:#fff}
+
 /* --- Panel setelan --- */
 .tirai{
   position:fixed; inset:0; z-index:50; background:rgba(23,35,58,.45);
@@ -295,10 +310,10 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
 <div id="tirai" class="tirai">
   <div class="panel">
     <div class="panel-bar">
-      <b>Setelan</b>
-      <button class="ikon-btn" onclick="tutupSetelan()">&#10005;</button>
+      <b id="panel-judul">Setelan</b>
+      <button class="ikon-btn" onclick="tutupPanel()">&#10005;</button>
     </div>
-    <div class="panel-isi" id="setelan_card"></div>
+    <div class="panel-isi" id="panel-isi"></div>
   </div>
 </div>
 
@@ -308,7 +323,7 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
 /* =========================================================
    1. KONFIGURASI & UTILITAS
    ========================================================= */
-const VERSI = '2026-09-01b';
+const VERSI = '2026-09-03a';
 
 const LS = {
   url   : 'kain.script_url',
@@ -1217,16 +1232,59 @@ async function kirimNaik(){
   } catch (e) { toast(e.message, true); }
 }
 
-async function tanyaTurun(no){
-  const s = prompt('Sisa benang di beam ' + no + ' berapa kg?\n' +
-                   'Isi 0 kalau benang habis (paling sering terjadi).', '0');
-  if (s === null) return;
+function tanyaTurun(no){
+  const b = S.status_beam.find(x => String(x.no_beam) === String(no)) || {};
+  bukaPanel('Turunkan beam ' + no, `
+    <div class="card">
+      <div class="fakta"><span>Beam</span><b>${esc(no)}</b></div>
+      <div class="fakta"><span>Sedang jalan di</span><b>Mesin ${esc(b.no_mesin || '?')}</b></div>
+      <div class="fakta"><span>Isi saat dipihane</span><b>${fmt(b.kg_benang || 0, 1)} kg</b></div>
+      <div class="fakta"><span>Lot benang</span><b>${esc(b.lot || '–')}</b></div>
+      ${b.kode_produk ? `<div class="fakta"><span>Hasil kain</span>
+        <b>${esc(M.namaProduk(b.kode_produk))}</b></div>` : ''}
+
+      <label for="tr_tgl">Tanggal turun</label>
+      <input type="date" id="tr_tgl" value="${hariIni()}">
+
+      <label>Kondisi benang</label>
+      <div class="pintas">
+        <button class="garis pilih" id="tr_habis" onclick="pilihSisa(true)">Habis</button>
+        <button class="garis" id="tr_sisa" onclick="pilihSisa(false)">Masih ada sisa</button>
+      </div>
+      <div id="tr_kotak" style="display:none">
+        <label for="tr_kg">Sisa benang (kg)</label>
+        <input type="number" inputmode="decimal" id="tr_kg" placeholder="0">
+        <p class="sub" style="margin:6px 0 0">Beam akan berstatus "Ready - sisa"
+        dan tidak bisa dipihane sebelum sisanya dikeluarkan.</p>
+      </div>
+
+      <div class="tombol-baris">
+        <button class="garis" onclick="tutupPanel()">Batal</button>
+        <button class="teal" onclick="jalankanTurun('${esc(no)}')">Turunkan</button>
+      </div>
+    </div>`);
+}
+
+function pilihSisa(habis){
+  document.getElementById('tr_habis').classList.toggle('pilih', habis);
+  document.getElementById('tr_sisa').classList.toggle('pilih', !habis);
+  document.getElementById('tr_kotak').style.display = habis ? 'none' : 'block';
+  if (habis) document.getElementById('tr_kg').value = '';
+}
+
+async function jalankanTurun(no){
+  const habis = document.getElementById('tr_habis').classList.contains('pilih');
+  const kg = habis ? 0 : Number(document.getElementById('tr_kg').value) || 0;
+  if (!habis && kg <= 0) return toast('Isi dulu berapa kg sisanya', true);
+
+  tutupPanel();
   try {
     await kirim('turunBeam', {
-      batch_id: batchId('TURUN'), tanggal: hariIni(),
-      no_beam: no, sisa_kg: Number(s) || 0
+      batch_id: batchId('TURUN'), tanggal: document.getElementById('tr_tgl')
+        ? document.getElementById('tr_tgl').value : hariIni(),
+      no_beam: no, sisa_kg: kg
     }, 'Turun beam');
-    toast(Number(s) > 0 ? `Beam ${no} turun — sisa ${s} kg` : `Beam ${no} turun, benang habis`);
+    toast(kg > 0 ? `Beam ${no} turun — sisa ${fmt(kg,1)} kg` : `Beam ${no} turun, benang habis`);
     await sinkron(false);
   } catch (e) { toast(e.message, true); }
 }
@@ -1313,7 +1371,13 @@ async function kirimPakan(){
 function layarProses(el){
   const wip  = { data: S.wip };
   const stok = { data: S.stok_kain };
-  const greigeStok = stok.data.filter(s => s.satuan === 'm' && s.qty > 0);
+  // Hanya greige di gudang sendiri yang boleh dikirim. Kain yang sudah
+  // berada di tempat proses muncul di form Terima, bukan di sini —
+  // tanpa saringan ini, kain di BCP ikut tampil seolah bisa dikirim lagi.
+  const kodeInternal = {};
+  M.lokasi('Internal').forEach(l => kodeInternal[l.kode] = true);
+  const greigeSemua = stok.data.filter(s =>
+    s.satuan === 'm' && s.qty > 0 && kodeInternal[s.lokasi]);
   const poAktif = M.po().filter(p => p.status !== 'Selesai');
 
   el.innerHTML = `
@@ -1326,35 +1390,15 @@ function layarProses(el){
       <label for="c_tempat">Tempat proses</label>
       <select id="c_tempat">${opsi(M.lokasi('Proses'), 'kode', 'nama')}</select>
       <label for="c_asal">Diambil dari</label>
-      <select id="c_asal">${opsi(M.lokasi('Internal'), 'kode', 'nama')}</select>
+      <select id="c_asal" onchange="gambarBarisKirim()">${opsi(M.lokasi('Internal'), 'kode', 'nama')}</select>
 
       <div class="pisah"></div>
       <div class="eyebrow" style="margin-top:0">Kain yang dikirim</div>
-      ${greigeStok.length ? (() => {
-        // Dikelompokkan per produk supaya nama panjangnya tidak diulang
-        // di tiap baris; yang berubah hanya grade, panjang, dan lokasi.
-        const grup = {};
-        greigeStok.forEach((s, i) => {
-          (grup[s.kode_produk] = grup[s.kode_produk] || []).push({s, i});
-        });
-        return `<div class="gp">
-          <div class="h kiri">Grade · panjang</div><div class="h">meter</div><div class="h">roll</div>
-          ${Object.keys(grup).map(kode => `
-            <div class="judul-produk">${esc(M.namaProduk(kode))}</div>
-            ${grup[kode].map(({s, i}) => `
-              <div class="nm">${esc(s.grade)} · ${s.kelas_panjang === 'L30' ? '≥30 m' : '<30 m'}
-                <div class="ada">${esc(s.lokasi)} — ada ${fmt(s.qty)} m</div></div>
-              <input type="number" inputmode="numeric" id="c_q${i}" placeholder="0"
-                data-p="${esc(s.kode_produk)}" data-g="${esc(s.grade)}"
-                data-k="${esc(s.kelas_panjang)}" data-l="${esc(s.lokasi)}" class="c_qty">
-              <input type="number" inputmode="numeric" id="c_r${i}" class="c_roll" placeholder="0">
-            `).join('')}`).join('')}
-        </div>`;
-      })() : '<div class="kosongpesan">Belum ada stok greige untuk dikirim.</div>'}
+      <div id="c_baris"></div>
 
       <p class="sub" style="margin:12px 0 0">Meter dan kg versi tempat proses diisi nanti
       saat kain diambil, karena notanya baru ada waktu itu.</p>
-      <div class="tombol-baris"><button class="teal" onclick="kirimKeProses()">Kirim</button></div>
+      <div class="tombol-baris"><button class="teal" id="c_kirim" onclick="kirimKeProses()">Kirim</button></div>
     </div>
 
     <div class="eyebrow">Terima hasil proses</div>
@@ -1387,7 +1431,79 @@ function layarProses(el){
         }).join('')}</table>`
       : '<div class="kosongpesan">Tidak ada PO berjalan.</div>'}</div>`;
 
+  GREIGE_KIRIM = greigeSemua;
+  gambarBarisKirim();
   if (poAktif.length) isiTerima();
+}
+
+let GREIGE_KIRIM = [];
+
+/** Baris kain yang bisa dikirim, mengikuti gudang yang dipilih. */
+function gambarBarisKirim(){
+  const box = document.getElementById('c_baris');
+  if (!box) return;
+  const asal = document.getElementById('c_asal').value;
+  const ada = GREIGE_KIRIM.filter(s => s.lokasi === asal);
+
+  if (!ada.length) {
+    box.innerHTML = `<div class="kosongpesan">Tidak ada stok greige di gudang ini.</div>`;
+    return;
+  }
+
+  const grup = {};
+  ada.forEach((s, i) => { (grup[s.kode_produk] = grup[s.kode_produk] || []).push({s, i}); });
+
+  box.innerHTML = `<div class="gp">
+    <div class="h kiri">Grade · panjang</div><div class="h">meter</div><div class="h">roll</div>
+    ${Object.keys(grup).map(kode => `
+      <div class="judul-produk">${esc(M.namaProduk(kode))}</div>
+      ${grup[kode].map(({s, i}) => `
+        <div class="nm">${esc(s.grade)} · ${s.kelas_panjang === 'L30' ? '≥30 m' : '<30 m'}
+          <div class="ada">ada ${fmt(s.qty)} m</div></div>
+        <input type="number" inputmode="numeric" id="c_q${i}" placeholder="0"
+          data-p="${esc(s.kode_produk)}" data-g="${esc(s.grade)}"
+          data-k="${esc(s.kelas_panjang)}" data-l="${esc(s.lokasi)}"
+          data-maks="${s.qty}" class="c_qty jaga">
+        <input type="number" inputmode="numeric" id="c_r${i}" class="c_roll" placeholder="0">
+      `).join('')}`).join('')}
+  </div>
+  <div class="galat" id="c_galat" style="display:none"></div>`;
+
+  pasangJaga(box, 'c_kirim', 'c_galat', 'm');
+}
+
+/**
+ * Penjaga stok: kotak yang melebihi stok tersedia diberi tanda merah
+ * dan tombol simpan dimatikan. Tanpa ini stok bisa jadi minus diam-diam,
+ * dan salahnya baru ketahuan berminggu-minggu kemudian saat opname.
+ */
+function pasangJaga(wadah, idTombol, idGalat, satuan){
+  const kotak = [...wadah.querySelectorAll('.jaga')];
+  const tb = document.getElementById(idTombol);
+  const pesan = document.getElementById(idGalat);
+
+  const periksa = () => {
+    const lebih = [];
+    kotak.forEach(el => {
+      const maks = Number(el.dataset.maks);
+      const isi  = Number(el.value) || 0;
+      const salah = isi > maks + 0.001;
+      el.classList.toggle('lebih', salah);
+      if (salah) lebih.push({el, maks, isi});
+    });
+    if (tb) tb.disabled = lebih.length > 0;
+    if (pesan) {
+      pesan.style.display = lebih.length ? 'block' : 'none';
+      pesan.textContent = lebih.length
+        ? (lebih.length === 1
+            ? `Melebihi stok — tersedia ${fmt(lebih[0].maks)} ${satuan}, diisi ${fmt(lebih[0].isi)}`
+            : `${lebih.length} baris melebihi stok yang tersedia`)
+        : '';
+    }
+  };
+
+  kotak.forEach(el => { el.addEventListener('input', periksa); });
+  periksa();
 }
 
 /** Form terima: input greige diambil dari sisa WIP PO tersebut. */
@@ -1409,8 +1525,9 @@ function isiTerima(){
       <div style="margin-bottom:8px">
         <label for="t_i${i}">${esc(M.namaProduk(w.kode_produk))} · ${esc(w.grade)} ·
           ${w.kelas_panjang === 'L30' ? '≥30' : '<30'} <span class="sub">(sisa ${fmt(w.sisa_m)} m)</span></label>
-        <input type="number" inputmode="decimal" id="t_i${i}" class="t_in" placeholder="0"
-          data-p="${esc(w.kode_produk)}" data-g="${esc(w.grade)}" data-k="${esc(w.kelas_panjang)}">
+        <input type="number" inputmode="decimal" id="t_i${i}" class="t_in jaga" placeholder="0"
+          data-p="${esc(w.kode_produk)}" data-g="${esc(w.grade)}" data-k="${esc(w.kelas_panjang)}"
+          data-maks="${w.sisa_m}">
       </div>`).join('')}
 
     <div class="eyebrow">Kain jadi yang diterima</div>
@@ -1435,7 +1552,12 @@ function isiTerima(){
     </div>
     <p class="sub" style="margin:6px 0 0">Boleh dikosongkan. Kg inilah yang dipakai menagih.
     Selisih meter di bawah 1% dianggap wajar; di atas itu diberi tanda PERIKSA.</p>
-    <div class="tombol-baris"><button class="teal" onclick="kirimTerima()">Simpan penerimaan</button></div>`;
+    <div class="galat" id="t_galat" style="display:none"></div>
+    <div class="tombol-baris">
+      <button class="teal" id="t_simpan" onclick="kirimTerima()">Simpan penerimaan</button>
+    </div>`;
+
+  pasangJaga(box, 't_simpan', 't_galat', 'm');
 }
 
 async function kirimKeProses(){
@@ -1488,13 +1610,44 @@ async function kirimTerima(){
   } catch (e) { toast(e.message, true); }
 }
 
-async function tutupPO(no){
-  if (!confirm('Tutup ' + no + '?\n\nSisa kain yang belum diambil akan dicatat sebagai susut proses. ' +
-               'PO masih bisa dibuka lagi kalau keliru.')) return;
+function tutupPO(no){
+  const po = M.po().find(p => String(p.no_po) === String(no)) || {};
+  const sisa = S.wip.filter(w => String(w.no_po) === String(no));
+  const totalSisa = sisa.reduce((a, w) => a + w.sisa_m, 0);
+  const dikirim = Number(po.meter_saya) || 0;
+
+  bukaPanel('Tutup ' + no, `
+    <div class="card">
+      <div class="fakta"><span>Tempat proses</span><b>${esc(po.tempat_proses || '–')}</b></div>
+      <div class="fakta"><span>Dikirim</span><b>${fmt(dikirim)} m</b></div>
+      <div class="fakta"><span>Sudah diambil</span><b>${fmt(dikirim - totalSisa)} m</b></div>
+      <div class="fakta tebal"><span>Sisa jadi susut</span>
+        <b style="color:${totalSisa > 0 ? 'var(--gC)' : 'inherit'}">${fmt(totalSisa)} m</b></div>
+
+      ${sisa.length ? `<table class="mini" style="margin-top:10px">
+        <tr><th class="kiri">Produk</th><th></th><th>Sisa (m)</th></tr>
+        ${sisa.map(w => `<tr><td class="kiri">${esc(M.namaProduk(w.kode_produk))}</td>
+          <td class="g ${esc(w.grade)}">${esc(w.grade)}</td>
+          <td>${fmt(w.sisa_m)}</td></tr>`).join('')}</table>` : ''}
+
+      <label for="tp_tgl">Tanggal tutup</label>
+      <input type="date" id="tp_tgl" value="${hariIni()}">
+      <p class="sub" style="margin:8px 0 0">Sisa di atas dicatat sebagai susut proses.
+      PO masih bisa dibuka lagi kalau keliru.</p>
+
+      <div class="tombol-baris">
+        <button class="garis" onclick="tutupPanel()">Batal</button>
+        <button class="teal" onclick="jalankanTutupPO('${esc(no)}')">Tutup PO</button>
+      </div>
+    </div>`);
+}
+
+async function jalankanTutupPO(no){
+  const tgl = document.getElementById('tp_tgl').value || hariIni();
+  tutupPanel();
   try {
-    const r = await kirim('tutupPO', {no_po: no, tanggal: hariIni(), batch_id: batchId('TUTUP')}, 'Tutup PO');
+    const r = await kirim('tutupPO', {no_po: no, tanggal: tgl, batch_id: batchId('TUTUP')}, 'Tutup PO');
     toast(r ? `${no} ditutup — susut ${fmt(r.susut_m)} m` : 'Masuk antrian');
-    await sinkron(false);
     await sinkron(false);
   } catch (e) { toast(e.message, true); }
 }
@@ -1521,14 +1674,19 @@ function layarLain(el){
           ${s.grade ? '· ' + esc(s.grade) : ''}
           ${s.kelas_panjang === 'L30' ? '· ≥30' : s.kelas_panjang === 'S30' ? '· <30' : ''}
           <span class="sub">(${fmt(s.qty)} ${esc(s.satuan)} di ${esc(s.lokasi)})</span></label>
-          <input type="number" inputmode="decimal" id="j_q${i}" class="j_qty" placeholder="0"
+          <input type="number" inputmode="decimal" id="j_q${i}" class="j_qty jaga" placeholder="0"
             data-p="${esc(s.kode_produk)}" data-g="${esc(s.grade)}" data-k="${esc(s.kelas_panjang)}"
-            data-l="${esc(s.lokasi)}" data-s="${esc(s.satuan)}"></div>
+            data-l="${esc(s.lokasi)}" data-s="${esc(s.satuan)}" data-maks="${s.qty}"></div>
         <div><label for="j_r${i}">Roll</label>
           <input type="number" inputmode="numeric" id="j_r${i}" class="j_roll" placeholder="0"></div>
       </div>`).join('')}
-    <div class="tombol-baris"><button class="teal" onclick="kirimJual()">Simpan penjualan</button></div>`
+    <div class="galat" id="j_galat" style="display:none"></div>
+    <div class="tombol-baris">
+      <button class="teal" id="j_simpan" onclick="kirimJual()">Simpan penjualan</button>
+    </div>`
     : '<div class="kosongpesan">Belum ada stok yang bisa dijual.</div>';
+
+  if (ada.length) pasangJaga(document.getElementById('jual_card'), 'j_simpan', 'j_galat', '');
 
   document.getElementById('opname_card').innerHTML = ada.length ? `
     <p class="sub" style="margin:0 0 10px">Isi hasil hitung fisik. Selisihnya dihitung
@@ -1541,9 +1699,9 @@ function layarLain(el){
         <input type="number" inputmode="decimal" id="o_${i}" class="o_fisik"
           placeholder="hasil hitung fisik"
           data-p="${esc(s.kode_produk)}" data-g="${esc(s.grade)}" data-k="${esc(s.kelas_panjang)}"
-          data-l="${esc(s.lokasi)}" data-s="${esc(s.satuan)}">
+          data-l="${esc(s.lokasi)}" data-s="${esc(s.satuan)}" data-sistem="${s.qty}">
       </div>`).join('')}
-    <div class="tombol-baris"><button onclick="kirimOpname()">Simpan koreksi</button></div>`
+    <div class="tombol-baris"><button onclick="kirimOpname()">Periksa &amp; simpan</button></div>`
     : '<div class="kosongpesan">Belum ada stok untuk diopname.</div>';
 
   document.getElementById('kartu_card').innerHTML = S.kartu.length
@@ -1579,27 +1737,66 @@ async function kirimOpname(){
     .filter(el => el.value !== '')
     .map(el => ({
       kode_produk: el.dataset.p, grade: el.dataset.g, kelas: el.dataset.k,
-      lokasi: el.dataset.l, satuan: el.dataset.s, fisik: Number(el.value)
+      lokasi: el.dataset.l, satuan: el.dataset.s,
+      fisik: Number(el.value), sistem: Number(el.dataset.sistem) || 0
     }));
   if (!baris.length) return toast('Belum ada hasil hitung yang diisi', true);
-  if (!confirm('Simpan koreksi untuk ' + baris.length + ' item?')) return;
+
+  // Selisihnya diperlihatkan dulu. Koreksi opname mengubah stok tanpa
+  // ada transaksi fisik di baliknya, jadi angkanya harus terlihat
+  // sebelum dikonfirmasi, bukan sekadar "yakin?".
+  bukaPanel('Koreksi opname', `
+    <div class="card">
+      <table class="mini">
+        <tr><th class="kiri">Item</th><th>Sistem</th><th>Fisik</th><th>Selisih</th></tr>
+        ${baris.map(b => {
+          const d = b.fisik - b.sistem;
+          return `<tr>
+            <td class="kiri">${esc(M.namaProduk(b.kode_produk))}
+              ${b.grade ? '· ' + esc(b.grade) : ''}</td>
+            <td>${fmt(b.sistem)}</td><td>${fmt(b.fisik)}</td>
+            <td style="color:${d < 0 ? 'var(--gC)' : 'var(--gA)'}"><b>${d > 0 ? '+' : ''}${fmt(d)}</b></td>
+          </tr>`;
+        }).join('')}
+      </table>
+      <label for="op_tgl">Tanggal opname</label>
+      <input type="date" id="op_tgl" value="${hariIni()}">
+      <div class="tombol-baris">
+        <button class="garis" onclick="tutupPanel()">Batal</button>
+        <button class="teal" onclick='jalankanOpname(${JSON.stringify(baris)})'>Simpan koreksi</button>
+      </div>
+    </div>`);
+}
+
+async function jalankanOpname(baris){
+  const tgl = document.getElementById('op_tgl').value || hariIni();
+  tutupPanel();
   try {
-    const r = await kirim('opnameKain', {batch_id: batchId('OPNAME'), tanggal: hariIni(), baris}, 'Opname');
+    const r = await kirim('opnameKain', {batch_id: batchId('OPNAME'), tanggal: tgl, baris}, 'Opname');
     toast(r ? `${r.baris} item dikoreksi` : 'Masuk antrian');
     await sinkron(false);
   } catch (e) { toast(e.message, true); }
 }
 
-function bukaSetelan(){
-  isiSetelan(document.getElementById('setelan_card'));
+/* Panel yang naik dari bawah, dipakai untuk setelan maupun konfirmasi.
+   Menggantikan prompt() dan confirm() bawaan peramban: dialog bawaan
+   tampil sebagai kotak sistem yang tidak mengikuti tampilan aplikasi,
+   tidak bisa menampilkan angka pembanding, dan prompt() diblokir di
+   sebagian peramban serta saat aplikasi dipasang di layar utama. */
+function bukaPanel(judul, isi){
+  document.getElementById('panel-judul').textContent = judul;
+  document.getElementById('panel-isi').innerHTML = isi;
   document.getElementById('tirai').classList.add('on');
 }
-function tutupSetelan(){
+function tutupPanel(){
   document.getElementById('tirai').classList.remove('on');
 }
+function bukaSetelan(){
+  bukaPanel('Setelan', htmlSetelan());
+}
 
-function isiSetelan(el){
-  el.innerHTML = `
+function htmlSetelan(){
+  return `
     <div class="card">
       <label for="s_url">URL Web App Apps Script</label>
       <input id="s_url" value="${esc(CFG.url)}" placeholder="https://script.google.com/macros/s/…/exec">
@@ -1643,7 +1840,7 @@ async function simpanSetelan(){
   CFG.url = u; CFG.token = t;
   statusKepala();
   const ok = await sinkron(true);
-  if (ok) tutupSetelan();
+  if (ok) tutupPanel();
 }
 
 /** Buang service worker dan cache-nya, lalu ambil ulang dari GitHub.
@@ -1681,7 +1878,7 @@ document.querySelectorAll('nav button').forEach(b =>
 document.getElementById('btn-set').addEventListener('click', bukaSetelan);
 document.getElementById('btn-sync').addEventListener('click', () => sinkron(true));
 document.getElementById('tirai').addEventListener('click', e => {
-  if (e.target.id === 'tirai') tutupSetelan();
+  if (e.target.id === 'tirai') tutupPanel();
 });
 
 window.addEventListener('online',  () => { statusKepala(); sinkron(false); });
