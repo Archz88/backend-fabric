@@ -129,9 +129,34 @@ button.kecil{width:auto; padding:9px 13px; font-size:13.5px; min-height:40px}
 button[disabled]{opacity:.45}
 .tombol-baris{display:flex; gap:9px; margin-top:14px}
 
-/* --- Kisi input grade: 4 kotak angka per baris, cukup untuk
-   angka ratusan meter. Label ditaruh di kepala kolom sekali saja,
-   bukan diulang di tiap kotak. --- */
+/* --- Input per roll: satu baris per grade, tiap roll jadi keping
+   yang bisa dibuang satu-satu. Pengelompokan ≥30/<30 dihitung
+   aplikasi, bukan dijumlah manual oleh operator. --- */
+.roll-grade{border-top:1px solid #F0EDE6; padding:11px 0 9px}
+.roll-grade:first-of-type{border-top:0}
+.roll-atas{display:flex; align-items:center; gap:8px}
+.roll-atas .gl{font-weight:800; font-size:15px; width:20px; text-align:center; flex:none}
+.roll-atas .gl.A{color:var(--gA)} .roll-atas .gl.B{color:var(--gB)} .roll-atas .gl.C{color:var(--gC)}
+.roll-atas input{flex:1; padding:10px 10px; text-align:center}
+.roll-atas button{
+  flex:none; width:44px; min-height:44px; padding:0; font-size:20px;
+  background:var(--ink); color:#fff; border-radius:8px
+}
+.keping{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-left:28px}
+.keping span{
+  display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:650;
+  background:#F2EFE8; border:1px solid var(--line); border-radius:16px;
+  padding:5px 8px 5px 11px; font-variant-numeric:tabular-nums; cursor:pointer
+}
+.keping span i{font-style:normal; color:var(--gC); font-size:14px; line-height:1}
+.keping span.pendek{background:#FBF4E4; border-color:#E8DCC0}
+.ringkas{
+  font-size:12px; color:var(--muted); margin-top:7px; padding-left:28px;
+  font-variant-numeric:tabular-nums
+}
+.ringkas b{color:var(--ink)}
+
+/* --- Kisi input grade lama, masih dipakai di layar lain --- */
 .gk{display:grid; grid-template-columns:24px repeat(4,1fr); gap:5px; align-items:center}
 .gk .h{
   font-size:9.5px; letter-spacing:.07em; text-transform:uppercase;
@@ -323,7 +348,7 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
 /* =========================================================
    1. KONFIGURASI & UTILITAS
    ========================================================= */
-const VERSI = '2026-09-03a';
+const VERSI = '2026-09-03b';
 
 const LS = {
   url   : 'kain.script_url',
@@ -868,6 +893,59 @@ let DAFTAR = [];
 try { DAFTAR = JSON.parse(localStorage.getItem(LS.daftar) || '[]'); } catch (e) { DAFTAR = []; }
 function simpanDaftar(){ localStorage.setItem(LS.daftar, JSON.stringify(DAFTAR)); }
 
+/* Panjang tiap roll yang sedang diketik, per grade. Aplikasi yang
+   mengelompokkan ke ≥30 m / <30 m — operator cukup menyebut angkanya
+   satu per satu, persis seperti membaca hasil inspect. */
+let ROLL = {A: [], B: [], C: []};
+
+/** Ambang kelas panjang diambil dari CONFIG di Kain.gs, bukan ditulis mati. */
+function AMBANG(){
+  return Number(S.master?.config?.ambang_panjang_m) || 30;
+}
+
+/** Terima "30 100 120 40", "30,100", atau satu angka saja. */
+function tambahRoll(g){
+  const el = document.getElementById('in' + g);
+  // Pemisah bisa spasi, koma, atau tanda apa pun yang bukan angka.
+  // Titik tetap dibaca sebagai desimal, jadi "30.5" satu roll,
+  // sedangkan "30,100" jadi dua roll.
+  const angka = String(el.value).split(/[^0-9.]+/)
+    .map(Number)
+    .filter(n => n > 0);
+
+  if (!angka.length) return toast('Isi dulu panjang rollnya', true);
+  ROLL[g] = ROLL[g].concat(angka);
+  el.value = '';
+  el.focus();
+  gambarRoll(g);
+}
+
+function buangRoll(g, i){
+  ROLL[g].splice(i, 1);
+  gambarRoll(g);
+}
+
+function gambarRoll(g){
+  const kp = document.getElementById('kp' + g);
+  const rk = document.getElementById('rk' + g);
+  if (!kp) return;
+  const batas = AMBANG();
+
+  kp.innerHTML = ROLL[g].map((m, i) =>
+    `<span class="${m < batas ? 'pendek' : ''}" onclick="buangRoll('${g}',${i})">
+       ${fmt(m)} <i>&times;</i></span>`).join('');
+
+  const panjang = ROLL[g].filter(m => m >= batas);
+  const pendek  = ROLL[g].filter(m => m <  batas);
+  const jml = a => a.reduce((x, y) => x + y, 0);
+
+  rk.innerHTML = ROLL[g].length
+    ? `≥${batas} m: <b>${panjang.length} rl / ${fmt(jml(panjang))} m</b>` +
+      ` &nbsp;·&nbsp; &lt;${batas} m: <b>${pendek.length} rl / ${fmt(jml(pendek))} m</b>` +
+      ` &nbsp;·&nbsp; total <b>${fmt(jml(ROLL[g]))} m</b>`
+    : '';
+}
+
 /** Greige selalu disimpan di pabrik, jadi lokasinya tidak ditanyakan. */
 function lokasiPabrik(){
   const int = M.lokasi('Internal');
@@ -879,6 +957,7 @@ function layarKain(el){
   const beam   = { data: S.status_beam };
   const mesin  = M.mesin();
   const greige = M.produk('Greige');
+  const batas  = AMBANG();
 
   if (!mesin.length || !greige.length) {
     el.innerHTML = `<div class="card"><h2>Master belum lengkap</h2>
@@ -888,11 +967,17 @@ function layarKain(el){
   }
 
   const barisGrade = (g) => `
-    <div class="gl ${g}">${g}</div>
-    <input type="number" inputmode="numeric" id="m${g}L" placeholder="0">
-    <input type="number" inputmode="numeric" id="r${g}L" placeholder="0">
-    <input type="number" inputmode="numeric" id="m${g}S" placeholder="0">
-    <input type="number" inputmode="numeric" id="r${g}S" placeholder="0">`;
+    <div class="roll-grade">
+      <div class="roll-atas">
+        <span class="gl ${g}">${g}</span>
+        <input type="text" inputmode="decimal" id="in${g}" placeholder="mis. 30 100 120"
+          autocomplete="off"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();tambahRoll('${g}')}">
+        <button onclick="tambahRoll('${g}')" title="Tambah roll">+</button>
+      </div>
+      <div class="keping" id="kp${g}"></div>
+      <div class="ringkas" id="rk${g}"></div>
+    </div>`;
 
   el.innerHTML = `
     <div class="eyebrow">Hasil inspect</div>
@@ -914,19 +999,12 @@ function layarKain(el){
       </div>
 
       <div class="pisah"></div>
-      <div class="gk">
-        <div class="h"></div>
-        <div class="h grup">30 m ke atas</div>
-        <div class="h grup">di bawah 30 m</div>
-        <div class="h"></div>
-        <div class="h">meter</div><div class="h">roll</div>
-        <div class="h">meter</div><div class="h">roll</div>
-        ${barisGrade('A')}
-        <div class="gk-sela"></div>
-        ${barisGrade('B')}
-        <div class="gk-sela"></div>
-        ${barisGrade('C')}
-      </div>
+      <div class="eyebrow" style="margin-top:0">Panjang tiap roll</div>
+      <p class="sub" style="margin:-4px 0 4px">Masukkan panjang per roll, boleh beberapa
+      sekaligus dipisah spasi atau koma. Pembagian ≥${batas} m dan di bawahnya dihitung
+      sendiri. Ketuk keping untuk membuangnya.</p>
+
+      ${barisGrade('A')}${barisGrade('B')}${barisGrade('C')}
 
       <div class="tombol-baris">
         <button class="garis" onclick="tambahDaftar()">+ Tambah ke daftar</button>
@@ -955,6 +1033,7 @@ function layarKain(el){
   };
   document.getElementById('k_mesin').addEventListener('change', setBeam);
   setBeam();
+  ['A','B','C'].forEach(gambarRoll);
   gambarDaftar();
 }
 
@@ -996,6 +1075,13 @@ function gambarDaftar(){
           <span class="sub">${esc(d.tanggal)}</span></div>
         <div class="rinci">${esc(M.namaProduk(d.kode_produk))}
           ${d.no_beam ? '· beam ' + esc(d.no_beam) : '· beam tidak diketahui'}</div>
+        ${d.baris.some(b => b.rincian) ? `<div class="rinci">
+          ${['A','B','C'].map(g => {
+            const r = d.baris.filter(b => b.grade === g)
+                             .flatMap(b => b.rincian || []).sort((x,y) => y - x);
+            return r.length ? `<span class="g ${g}" style="font-weight:800">${g}</span> ${r.map(v => fmt(v)).join(', ')}` : '';
+          }).filter(String).join(' &nbsp;·&nbsp; ')}
+        </div>` : ''}
         <table class="mini">
           <tr><th class="kiri"></th><th class="grup" colspan="2">30 m ke atas</th>
               <th class="grup" colspan="2">di bawah 30 m</th></tr>
@@ -1013,20 +1099,26 @@ function gambarDaftar(){
 
 function tambahDaftar(){
   const g = id => document.getElementById(id);
-  const n = id => Number(g(id).value) || 0;
-
+  const batas = AMBANG();
   const baris = [];
+
   ['A','B','C'].forEach(gr => {
-    [['L','L30'],['S','S30']].forEach(([suf, kelas]) => {
-      const m = n('m' + gr + suf);
-      if (m > 0) baris.push({grade: gr, kelas, meter: m, roll: n('r' + gr + suf)});
+    [['L30', m => m >= batas], ['S30', m => m < batas]].forEach(([kelas, cocok]) => {
+      const isi = ROLL[gr].filter(cocok);
+      if (!isi.length) return;
+      baris.push({
+        grade: gr, kelas,
+        meter: isi.reduce((a, b) => a + b, 0),
+        roll : isi.length,
+        rincian: isi.slice()        // panjang tiap roll, ikut tercatat di ledger
+      });
     });
   });
 
-  if (!baris.length) return toast('Belum ada meter yang diisi', true);
+  if (!baris.length) return toast('Belum ada roll yang dimasukkan', true);
 
   DAFTAR.push({
-    batch_id   : batchId('KAIN'),          // ditetapkan sekarang, aman dikirim ulang
+    batch_id   : batchId('KAIN'),
     tanggal    : g('k_tgl').value,
     no_mesin   : g('k_mesin').value,
     no_beam    : g('k_beam').value,
@@ -1036,14 +1128,10 @@ function tambahDaftar(){
   });
   simpanDaftar();
 
-  // Kosongkan angkanya saja; mesin, tanggal, dan produk dibiarkan
-  // supaya mesin berikutnya bisa langsung diisi.
-  ['A','B','C'].forEach(gr => ['L','S'].forEach(s => {
-    g('m' + gr + s).value = ''; g('r' + gr + s).value = '';
-  }));
-
+  ROLL = {A: [], B: [], C: []};
   const total = baris.reduce((a, b) => a + b.meter, 0);
-  toast(`Ditambahkan — ${fmt(total)} m`);
+  const roll  = baris.reduce((a, b) => a + b.roll, 0);
+  toast(`Ditambahkan — ${fmt(roll)} roll, ${fmt(total)} m`);
   layarKain(document.getElementById('layar'));
 }
 
