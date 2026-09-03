@@ -210,6 +210,18 @@ button[disabled]{opacity:.45}
 .tin td.nol{color:#C9C4B8}
 .tin .sekat{border-left:1px solid #F0EDE6}
 
+/* --- Rincian panjang tiap roll, untuk memeriksa roll per roll --- */
+.roll-rinci{
+  background:#F7F5EF; border-radius:7px; padding:7px 9px; margin-top:7px;
+  font-variant-numeric:tabular-nums; line-height:1.7
+}
+.roll-rinci .tg{
+  display:inline-block; min-width:16px; text-align:center; font-weight:800;
+  font-size:11px; margin-right:5px
+}
+.roll-rinci .tg.A{color:var(--gA)} .roll-rinci .tg.B{color:var(--gB)}
+.roll-rinci .tg.C{color:var(--gC)}
+
 /* --- Kelompok produk di layar stok --- */
 .kelompok{margin-bottom:14px}
 .kelompok:last-child{margin-bottom:0}
@@ -371,7 +383,7 @@ nav button.aktif{color:var(--ink); border-top-color:var(--teal)}
 /* =========================================================
    1. KONFIGURASI & UTILITAS
    ========================================================= */
-const VERSI = '2026-09-03c';
+const VERSI = '2026-09-03d';
 
 const LS = {
   url   : 'kain.script_url',
@@ -1111,6 +1123,15 @@ function gambarDaftar(){
           <span class="sub">${esc(d.tanggal)}</span></div>
         <div class="rinci">${esc(M.namaProduk(d.kode_produk))}
           ${d.no_beam ? '· beam ' + esc(d.no_beam) : '· beam tidak diketahui'}</div>
+        ${d.baris.some(b => b.rincian) ? `<div class="rinci roll-rinci">
+          ${grades.map(g => {
+            const r = d.baris.filter(b => b.grade === g)
+                             .flatMap(b => b.rincian || []).sort((x, y) => y - x);
+            return r.length
+              ? `<span class="tg ${g}">${g}</span> ${r.map(v => fmt(v)).join(', ')}`
+              : '';
+          }).filter(String).join('<br>')}
+        </div>` : ''}
 
         <table class="tin">
           <tr><th class="kiri"></th>
